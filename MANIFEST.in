@@ -1,0 +1,2 @@
+include taxa_sdk/bin/*
+include taxa_sdk/bin/libs/*
