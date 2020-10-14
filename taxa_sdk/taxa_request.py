@@ -2,11 +2,14 @@ from __future__ import print_function
 
 import os
 import pyaes
+import re
 import json
 import base64
 import binascii
+from subprocess import Popen, PIPE
 import hashlib
 import warnings
+import random
 
 from .multihash_py2_py3 import sha256_multihash
 import requests
@@ -44,9 +47,26 @@ class TaxaRequest(object):
     # ignore https certificate errors
     verify = False
 
+    # where the node IP comes from, wither 'p2p', or 'node_distributor'
+    node_source = 'p2p'
+
+    # Add p2p seeds here
+    p2p_seeds = [
+        '/ip4/13.90.172.233/tcp/6868/p2p/12D3KooWRdg2RSoZVa3ecFZrDR9u3eR6xAQ5YPBp1tQtHMM9SYYq'
+    ]
+
+    # only for debugging
+    last_encrypted_response = None
+    last_decrypted_response = None
+
+    # cert used to find the appropriate node to send request to. If not passed in
+    # tot he constructor, it uses the normal client_cert.
+    peer_cert = None
+
     # Initialze the request object with key paths
     def __init__(self, identity=None, core_path=None, client_cert_path=None,
-                 client_key_path=None, master_key_path=None, verbose=True):
+                 client_key_path=None, master_key_path=None, verbose=False,
+                 p2p_node=None, peer_cert_path=None, peer_cert_bytes=None):
         self.verbose = verbose
         if client_cert_path or client_key_path or master_key_path:
             self.key_manager = FileKeyManager(
@@ -59,16 +79,24 @@ class TaxaRequest(object):
                 identity, core_path=core_path, verbose=verbose
             )
 
+        if p2p_node:
+            self.p2p_seeds = [p2p_node]
+            self.node_source = 'p2p'
+
+        if peer_cert_path:
+            with open(peer_cert_path) as f:
+                self.peer_cert = peer_cert_path.read()
+        elif peer_cert_bytes:
+            self.peer_cert = peer_cert_bytes
+        else:
+            self.peer_cert = self.key_manager.client_cert
+
     def p(self, *args):
-        if self.verbose: print(*args)
+        if self.verbose: print("SDK:", *args)
 
     # Encrypt the request data section with master AES key
     def __encryptData(self, data):
         ciphertext = b''
-
-        # set ip so attestation goes to the proper server if attestation is needed
-        # and/or the correct aes key is selected.
-        self.key_manager.ip = self.get_ip()
 
         # We can encrypt one line at a time, regardles of length
         encrypter = pyaes.Encrypter(
@@ -98,9 +126,15 @@ class TaxaRequest(object):
         # Make a final call to flush any remaining bytes and add padding
         decrypted_data += decrypter.feed()
 
+        self.last_encrypted_response = encrypted_data # for debugging
+        self.last_decrypted_response = decrypted_data # for debugging
+
         try:
-            return decrypted_data.decode("utf-8") # interpret as text
+            ret = decrypted_data.decode("utf-8") # interpret as text
+            self.p("Interpreping decrypted response as text")
+            return ret
         except UnicodeDecodeError:
+            self.p("Interpreping decrypted response as binary")
             return decrypted_data
 
     # Encode the encryped data with base64 so they can be put in JSON
@@ -142,19 +176,37 @@ class TaxaRequest(object):
         Set App ID by providing full code file. The full code will also appear
         in request field
         """
+        self.code_path = code_file
         self.code = self.read_code_bytes(code_file)
         self.appId = sha256_multihash(self.code)
 
     # Output request JSON
-    def getRawRequest(self):
+    def request_body(self, function=None, code_path=None, appid_from_code=None, data=None, json_data=None):
+        if function:
+            self.function = function
+        if code_path:
+            self.set_code(code_path)
+        if appid_from_code:
+            self.set_appid_from_code(appid_from_code)
+        if data:
+            self.set_data(data)
+        if json_data:
+            self.set_json_data(json_data)
+
         # As of v0.1, we only support raw and base64 as encoding mode
         if self.__dataEncoding != "base64":
             self.__dataEncoding = "raw"
+
+        # set ip so attestation goes to the proper server if attestation is needed
+        # and/or the correct aes key is selected.
+        self.key_manager.ip = self.get_ip()
 
         # If needed, encode the data with assigned encoding mode
         json_data = ""
         if self.__data != "":
             json_data = self.__getJsonDataItemKey(self.__dataEncoding, self.__data)
+        else:
+            self.key_manager.master_key # force attestation if needed
 
         # appID and code, at least 1 must be set. __function must be set.
         if not self.appId and not self.code:
@@ -172,6 +224,7 @@ class TaxaRequest(object):
             "data": json_data,
             "content-transfer-encoding":self.__dataEncoding
         }
+
         if self.code:
             request['code'] = self.code.decode()
         return request
@@ -180,25 +233,14 @@ class TaxaRequest(object):
     def base_url(self):
         return "https://" + self.get_ip() + ":8002"
 
-    def send(self, function=None, code_path=None, appid_from_code=None, data=None, json_data=None):
+    def send(self, **convenient):
         """
         Send the encoded request to node, expect a dictionary of the response
         from the server.
         """
-        if function:
-            self.function = function
-        if code_path:
-            self.set_code(code_path)
-        if appid_from_code:
-            self.set_appid_from_code(appid_from_code)
-        if data:
-            self.set_data(data)
-        if json_data:
-            self.set_json_data(json_data)
-
+        d = self.request_body(**convenient)
         url = self.base_url + "/api/contract/request"
         headers = {'accept': 'application/json'}
-        d = self.getRawRequest()
         self.p("Sending raw data:", d)
         self.p("Sending to:", url)
 
@@ -213,6 +255,11 @@ class TaxaRequest(object):
         ))
 
         response = json.loads(j['response'].replace("\'", '"'))
+
+        if response['response-code'] == '4000':
+            error_msg = self.decrypt_response(response)['decrypted_data']
+            raise TserviceError(error_msg)
+
         return self.decrypt_response(response)
 
     def decrypt_response(self, response):
@@ -224,12 +271,92 @@ class TaxaRequest(object):
         if self.ip:
             return self.ip
 
+        if self.node_source == "p2p":
+            self.ip = self._ip_from_p2p()
+        elif self.node_source == 'node_distributor':
+            self.ip = self._ip_from_node_distributor()
+        else:
+            raise TaxaException("Unknown node source: " + self.node_source)
+
+        self.p("Using IP of:", self.ip)
+        return self.ip
+
+    def _ip_from_node_distributor(self):
         appID = self.appId.replace('/', "%2F")
+        self.p("Getting IP from node distributor")
         url = "http://%s/appId/%s" % (self.node_distributor, appID)
         resp = requests.get(url)
         try:
-            self.ip = resp.json()['serverIp']
-            self.p("Connecting to node:", self.ip)
-            return self.ip
+            return resp.json()['serverIp']
         except json.decoder.JSONDecodeError as exc:
             raise TaxaException("Can't get node IP: %s" % resp.text)
+
+    def _ip_from_p2p(self):
+        this_dir = os.path.dirname(os.path.abspath(__file__))
+        p2p_path = os.path.join(this_dir, "bin")
+        self.p("Getting IP from Peer-to-Peer network")
+
+        random.shuffle(self.p2p_seeds)
+        for node in self.p2p_seeds:
+            ip = self._try_p2p_node(p2p_path, node)
+            if ip:
+                return ip
+        raise Exception("Peer-to-peer network failed to return a taxa node IP")
+
+    def _try_p2p_node(self, p2p_path, node):
+        peer_cert = os.path.join(os.path.expanduser("~"), ".taxa_peer_cert")
+        with open(peer_cert, 'wb') as f:
+            f.write(self.peer_cert)
+        command = "./taxa-p2p-node -d %s -appIdPath %s -client" % (
+            node, peer_cert
+        )
+        full_cmd = "cd %s; %s" % (p2p_path, command)
+        self.p("p2p called: %s" % full_cmd)
+        get_ip = Popen(
+            full_cmd, shell=True, stdout=PIPE
+        )
+
+        while not get_ip.poll():
+            output = get_ip.stdout.readline().decode()
+            if output.startswith("IP Address is"):
+                break
+
+        get_ip.terminate()
+        get_ip.stdout.close()
+        os.remove(peer_cert)
+        return output[14:-1]
+
+
+    def key_dump(self):
+        """
+        For debugging. Prints out all keys and tells you their length
+        """
+        print("========")
+        print("keydump for: %s" % self.key_manager)
+        client_cert = self.key_manager.client_cert
+        print(
+            "Client Cert:    (%d) %s" % (len(client_cert), binascii.b2a_base64(client_cert))
+        )
+        client_key = self.key_manager.client_key
+        print(
+            "Client key:     (%d) %s" % (len(client_key), binascii.b2a_base64(client_key))
+        )
+        master_key = self.key_manager.master_key_key
+        print(
+            "Master Key:     (%d) %s" % (len(master_key), binascii.b2a_hex(master_key))
+        )
+        iv = self.key_manager.master_key_iv
+        print(
+            "IV:             (%d) %s" % (len(iv), iv)
+        )
+        if self.last_encrypted_response:
+            ler = binascii.a2b_base64(self.last_encrypted_response)
+            print(
+                "Encrypted resp: (%d) %s" % (len(ler), binascii.b2a_base64(ler))
+            )
+        if self.last_decrypted_response:
+            ldr = self.last_decrypted_response
+            print(
+                "Decrypted resp: (%d) %s" % (len(ldr), binascii.b2a_base64(ldr))
+            )
+        print("========")

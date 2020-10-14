@@ -15,3 +15,12 @@ class TaxaClientException(TaxaException):
 
 class AttestationException(TaxaException):
     pass
+
+class InvalidAttestationStatus(AttestationException):
+    pass
+
+class UnknownAttestationException(AttestationException):
+    pass
+
+class TserviceError(TaxaException):
+    pass

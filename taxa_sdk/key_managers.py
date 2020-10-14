@@ -12,6 +12,7 @@ import requests
 import json
 import base64
 import hashlib
+import time
 import sys
 import shutil
 import warnings
@@ -49,9 +50,15 @@ class BaseKeyManager(object):
     # to skip https certificate verification (for beta)
     verify = False
 
+    # the amount of times attestation will be retried before giving up
+    attestation_retries = 3
+
+    # seconds to pause before each attestation retry
+    attestation_retry_pause = 2
+
     def pre_attestation_hook(self):
         return
-    def post_attestation_hook(self):
+    def post_attestation_hook(self, output):
         return
     def pre_keygen_hook(self):
         return
@@ -195,7 +202,7 @@ class BaseKeyManager(object):
             self._delete_home_copies()
         self.post_keygen_hook()
 
-    def do_attestation(self, ip=None):
+    def do_attestation(self, ip=None, retry_count=0):
         if ip: self.ip = ip
         self.pre_attestation_hook()
         self.upload_client_cert()
@@ -207,16 +214,24 @@ class BaseKeyManager(object):
             self._delete_home_copies()
 
         try:
-            attestation_status = int(output.decode().split('\n')[14].split(' ')[1])
-        except:
-            raise AttestationException("Failure for unknown reason. Try Again.")
-
-        if attestation_status < 0:
-            raise AttestationException(
-                "returned status: %s Try again." % attestation_status
+            attestation_status = check_attestation_status(output)
+        except InvalidAttestationStatus as exc:
+            if retry_count > self.attestation_retries:
+                raise InvalidAttestationStatus(
+                    "Still invalid after %s tries" % self.attestation_retries
+                )
+            self.p("Invalid status: %s, trying again after %s seconds" % (
+                exc, self.attestation_retry_pause
+            ))
+            time.sleep(self.attestation_retry_pause)
+            return self.do_attestation(retry_count=retry_count+1)
+        except UnknownAttestationException:
+            raise UnknownAttestationException(
+                "Attestation Failed! output was: %s" % output
             )
 
-        self.post_attestation_hook()
+        self.p("Attestation status was: %s" % attestation_status)
+        self.post_attestation_hook(output)
 
     @property
     def client_cert(self):
@@ -275,6 +290,12 @@ class FileKeyManager(BaseKeyManager):
 
         return super(FileKeyManager, self).__init__(**kwargs)
 
+    def __unicode__(self):
+        return self.client_key_path
+
+    def __str__(self):
+        return self.__unicode__()
+
     @property
     def default_client_key_path(self):
         key_name = self.DEFAULT_HOME_KEY_NAME + ".key"
@@ -320,6 +341,12 @@ class IdentityKeyManager(BaseKeyManager):
 
         return super(IdentityKeyManager, self).__init__(**kwargs)
 
+    def __unicode__(self):
+        return self.identity_path
+
+    def __str__(self):
+        return self.__unicode__()
+
     @property
     def master_key_path(self):
         return "%s.%s.aes" % (self.identity_path, self.ip)
@@ -361,10 +388,15 @@ class IdentityKeyManager(BaseKeyManager):
         with open(path, 'wb') as f:
             f.write(getattr(self, which))
 
-    def post_attestation_hook(self):
-        with open(self.master_key_path, 'rb') as master_key:
-            b64 = base64.b64encode(master_key.read()).decode()
-            self.keys['master_key'][self.ip] = b64
+    def post_attestation_hook(self, output):
+        try:
+            with open(self.master_key_path, 'rb') as master_key:
+                b64 = base64.b64encode(master_key.read()).decode()
+                self.keys['master_key'][self.ip] = b64
+        except IOError:
+            raise AttestationException(
+                "No AES key written, taxa_client output was: %s" % str(output)
+            )
 
         os.remove(self.client_cert_path)
         os.remove(self.master_key_path)
@@ -385,3 +417,18 @@ class IdentityKeyManager(BaseKeyManager):
 
         with open(self.identity_path, 'w') as identity:
             identity.write(json.dumps(self.keys))
+
+def check_attestation_status(output):
+    """
+    From the raw output of the attestation command, parse the output for the status
+    code, then raise exceptions of the status code shows the attestation failed.
+    """
+    try:
+        status = int(output.decode().split('\n')[14].split(' ')[1])
+    except:
+        raise UnknownAttestationException("Can't parse status, Try Again.")
+
+    if status < 0:
+        raise InvalidAttestationStatus(status)
+
+    return status
