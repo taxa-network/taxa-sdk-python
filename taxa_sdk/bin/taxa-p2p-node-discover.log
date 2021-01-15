@@ -1,0 +1,3 @@
+time="2020-08-27T15:29:40-06:00" level=debug msg="Start discover service loop"
+time="2020-08-27T15:29:40-06:00" level=debug msg="Start discover node query"
+time="2020-08-27T15:29:40-06:00" level=debug msg="Complete discover node query"
