@@ -26,8 +26,8 @@ def delete_keys(filename):
         os.remove(filename)
 
 class BaseServerTest(unittest.TestCase):
-    server_path = "/home/chris/Taxa-Core/server/Application/"
-    client_path = "/home/chris/Taxa-Core/client/ServiceProvider/"
+    server_path = "/path-to-taxa-core/Taxa-Core/server/Application/"
+    client_path = "/path-to-taxa-core/Taxa-Core/client/ServiceProvider/"
 
     def code_path(self, filename):
         this_folder = os.path.dirname(__file__)
@@ -41,7 +41,7 @@ class TestEmptyConstructor(BaseServerTest):
     filename = None
     def test_code(self):
         manager = IdentityKeyManager(verbose=True)
-        manager.do_attestation(ip='13.90.172.233')
+        manager.do_attestation(ip='localhost')
         self.filename = manager.identity_path
 
         self.assertTrue(self.filename.startswith("/home"))
