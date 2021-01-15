@@ -17,6 +17,7 @@ from .exceptions import *
 FORCEIP = None
 KEEP_KEYS = False
 NO_P2P = False
+USE_PACKAGED = True
 
 def delete_keys(filename):
     if KEEP_KEYS:
@@ -25,8 +26,8 @@ def delete_keys(filename):
         os.remove(filename)
 
 class BaseServerTest(unittest.TestCase):
-    server_path = "/path-to-taxa-core/Taxa-Core/server/Application/"
-    client_path = "/path-to-taxa-core/Taxa-Core/client/ServiceProvider/"
+    server_path = "/home/chris/Taxa-Core/server/Application/"
+    client_path = "/home/chris/Taxa-Core/client/ServiceProvider/"
 
     def code_path(self, filename):
         this_folder = os.path.dirname(__file__)
@@ -40,7 +41,7 @@ class TestEmptyConstructor(BaseServerTest):
     filename = None
     def test_code(self):
         manager = IdentityKeyManager(verbose=True)
-        manager.do_attestation(ip='localhost')
+        manager.do_attestation(ip='13.90.172.233')
         self.filename = manager.identity_path
 
         self.assertTrue(self.filename.startswith("/home"))
@@ -185,10 +186,10 @@ class TestBypassWebUI(BaseServerTest):
     key_path = None
 
     def execute_client(self, cmd):
-        print("COMMAND: ./taxa_client " + cmd)
+        full_cmd = "cd " + self.client_path + "; ./taxa_client " + cmd
+        print("COMMAND: %s" % full_cmd)
         return subprocess.Popen(
-            "cd " + self.client_path + "; ./taxa_client " + cmd,
-            shell=True, stdout=subprocess.PIPE, #stderr=subprocess.PIPE
+            full_cmd, shell=True, stdout=subprocess.PIPE, #stderr=subprocess.PIPE
         )
     def execute_server(self, cmd):
         full_cmd = "cd " + self.server_path + "; ./taxa_server " + cmd
@@ -246,6 +247,7 @@ class TestBypassWebUI(BaseServerTest):
             client_key_path=self.key_path, client_cert_path=self.cert_path,
             master_key_path=self.master_key_path, verbose=False
         )
+        req.ip = 'localhost'
 
         body = req.request_body(code_path=self.code_path("millionaire.py"), **tservice_args)
         body['param'] = {"t": "33"}
@@ -297,20 +299,38 @@ class TestBypassWebUI(BaseServerTest):
             filename = getattr(self, f)
             delete_keys(filename)
 
+class SnippetTest(BaseServerTest):
+    def test_snippet(self):
+        extra = {}
+
+        if not USE_PACKAGED:
+            extra['core_path'] = self.client_path + "taxa_client"
+
+        request = TaxaRequest("snippet.json", verbose=True, do_export=USE_PACKAGED, **extra)
+        if FORCEIP: request.ip = FORCEIP
+        response = request.send(
+            function="test",
+            json_data={"module": DO_MODULE},
+            code_path=self.code_path("snippet_tests.py"),
+        )
+        self.assertEqual(response['decrypted_data'], '')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--forceip', default=None)
+    parser.add_argument('--nopackagedcore', action='store_true', default=False)
     parser.add_argument('--keepkeys', action='store_true', default=False)
+    parser.add_argument('--module', default=None)
     parser.add_argument('--nop2p', action='store_true', default=False)
     parser.add_argument('unittest_args', nargs='*')
 
     args = parser.parse_args()
-
     FORCEIP = args.forceip
 
+    USE_PACKAGED = not args.nopackagedcore
     KEEP_KEYS = args.keepkeys
     NO_P2P = args.nop2p
+    DO_MODULE = args.module
 
     sys.argv[1:] = args.unittest_args
     unittest.main()

@@ -50,7 +50,6 @@ class TaxaRequest(object):
     # where the node IP comes from, wither 'p2p', or 'node_distributor'
     node_source = 'p2p'
 
-    # Add p2p seeds here
     p2p_seeds = [
         '/ip4/13.90.172.233/tcp/6868/p2p/12D3KooWRdg2RSoZVa3ecFZrDR9u3eR6xAQ5YPBp1tQtHMM9SYYq'
     ]
@@ -66,17 +65,18 @@ class TaxaRequest(object):
     # Initialze the request object with key paths
     def __init__(self, identity=None, core_path=None, client_cert_path=None,
                  client_key_path=None, master_key_path=None, verbose=False,
-                 p2p_node=None, peer_cert_path=None, peer_cert_bytes=None):
+                 p2p_node=None, peer_cert_path=None, peer_cert_bytes=None,
+                 do_export=True):
         self.verbose = verbose
         if client_cert_path or client_key_path or master_key_path:
             self.key_manager = FileKeyManager(
                 core_path=core_path, client_cert_path=client_cert_path,
                 client_key_path=client_key_path, master_key_path=master_key_path,
-                verbose=verbose
+                verbose=verbose, do_export=do_export
             )
         else:
             self.key_manager = IdentityKeyManager(
-                identity, core_path=core_path, verbose=verbose
+                identity, core_path=core_path, verbose=verbose, do_export=do_export
             )
 
         if p2p_node:

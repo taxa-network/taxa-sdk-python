@@ -66,19 +66,24 @@ class BaseKeyManager(object):
         return
 
     @property
+    def export(self):
+        if self.do_export:
+            return "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:{libdir};".format(libdir=find_lib_dir())
+        else:
+            return ""
+
+    @property
     def client_connect_cmd(self):
-        libdir = find_lib_dir()
-        return "cd; export LD_LIBRARY_PATH={libdir}; ./taxa_client connect {client_key} {master_key}".format(
+        return "cd; {export} ./taxa_client connect {client_key} {master_key}".format(
             core_dir=self.core_dir, client_key=self.client_key_path,
-            master_key=self.master_key_path, libdir=libdir
+            master_key=self.master_key_path, export=self.export
         )
 
     @property
     def gen_key_cmd(self):
-        libdir = find_lib_dir()
-        return "cd; export LD_LIBRARY_PATH={libdir}; ./taxa_client keygen {client_cert} {client_key}".format(
+        return "cd; {export} ./taxa_client keygen {client_cert} {client_key}".format(
             core_dir=self.core_dir, client_cert=self.client_cert_path,
-            client_key=self.client_key_path, libdir=libdir
+            client_key=self.client_key_path, export=self.export
         )
 
     @property
@@ -108,8 +113,9 @@ class BaseKeyManager(object):
     def p(self, *args):
         if self.verbose: print("SDK:", *args)
 
-    def __init__(self, core_path=None, verbose=False):
+    def __init__(self, core_path=None, verbose=False, do_export=True):
         self.verbose = verbose
+        self.do_export = do_export
         if not core_path:
             # use defaults that come packaged with this module
             base_path = os.path.dirname(os.path.abspath(__file__))
