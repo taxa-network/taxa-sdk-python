@@ -1,0 +1,15 @@
+[DEBUG]: 2020-08-27 15:29:38 - Start taxa p2p node
+[DEBUG]: 2020-08-27 15:29:38 - Taxa server path is /tmp
+[DEBUG]: 2020-08-27 15:29:38 - Log folder path is ./
+[INFO]: 2020-08-27 15:29:39 - Current IP is 67.10.197.18
+[INFO]: 2020-08-27 15:29:39 - Run './taxa-p2p-node -d /ip4/67.10.197.18/tcp/6868/p2p/12D3KooWQDq49sv7hnpw7qyJ72sxokCpdQkBiajia1Uw1KQLPWNE' on another console.
+[INFO]: 2020-08-27 15:29:39 - Enter service mode
+[DEBUG]: 2020-08-27 15:29:39 - Start taxa p2p node
+[DEBUG]: 2020-08-27 15:29:39 - Taxa server path is /tmp
+[DEBUG]: 2020-08-27 15:29:39 - Log folder path is ./
+[INFO]: 2020-08-27 15:29:39 - Current IP is 67.10.197.18
+[INFO]: 2020-08-27 15:29:39 - Run './taxa-p2p-node -d /ip4/67.10.197.18/tcp/6868/p2p/12D3KooWQDq49sv7hnpw7qyJ72sxokCpdQkBiajia1Uw1KQLPWNE' on another console.
+[ERROR]: 2020-08-27 15:29:39 - Invalid address /ip4/67.10.197.18/tcp/6868/p2p/12D3KooWQDq49sv7hnpw7qyJ72sxokCpdQkBiajia1Uw1KQLPWNE is not pingable[INFO]: 2020-08-27 15:29:39 - Enter client mode
+[ERROR]: 2020-08-27 15:29:39 - Fail to read appId from ./code/millionaire.py
+[INFO]: 2020-08-27 15:29:40 - Sending out discover request
+[INFO]: 2020-08-27 15:31:06 - Catch user exit signal.
