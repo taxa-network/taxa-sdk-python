@@ -17,6 +17,8 @@ import requests
 from .key_managers import FileKeyManager, IdentityKeyManager
 from .exceptions import *
 
+
+
 # Request generation and sending.
 class TaxaRequest(object):
     # Header -> Type in request, see doc
@@ -51,7 +53,7 @@ class TaxaRequest(object):
     node_source = 'p2p'
 
     p2p_seeds = [
-        '/ip4/13.90.172.233/tcp/6868/p2p/12D3KooWRdg2RSoZVa3ecFZrDR9u3eR6xAQ5YPBp1tQtHMM9SYYq'
+        '/ip4/52.138.26.47/tcp/6868/p2p/12D3KooWBwQ6R1cxmptkxK9RGwfb6qfn27auCd5DWwxaBKPV5UZL'
     ]
 
     # only for debugging
@@ -254,11 +256,22 @@ class TaxaRequest(object):
             j['status'], j['response']
         ))
 
-        response = json.loads(j['response'].replace("\'", '"'))
+        taxa_core_response = j['response']
+        if taxa_core_response.startswith('taxa-server.log.1'):
+            # working around a bug in taxa-server
+            taxa_core_response = taxa_core_response[18:]
 
-        if response['response-code'] == '4000':
+        try:
+            response = json.loads(taxa_core_response.replace("\'", '"'))
+        except ValueError:
+            raise WebUIError("Got invalid JSON: %s" % j)
+
+        rc = response['response-code']
+        if rc == '4000':
             error_msg = self.decrypt_response(response)['decrypted_data']
             raise TserviceError(error_msg)
+        elif rc == '4001':
+            raise SessionLimitsExceeded()
 
         return self.decrypt_response(response)
 

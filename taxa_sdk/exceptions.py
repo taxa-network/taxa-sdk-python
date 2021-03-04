@@ -24,3 +24,9 @@ class UnknownAttestationException(AttestationException):
 
 class TserviceError(TaxaException):
     pass
+
+class SessionLimitsExceeded(TserviceError):
+    pass
+
+class WebUIError(TaxaException):
+    pass
