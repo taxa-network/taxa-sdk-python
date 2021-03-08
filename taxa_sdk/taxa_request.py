@@ -165,7 +165,7 @@ class TaxaRequest(object):
         self.__data = data
         self.__dataEncoding = encoding
 
-    def set_appid_from_code(self, code_path):
+    def set_appid_from_code_path(self, code_path):
         """
         Set App ID by providing full code. The full code will not appear in
         request field
@@ -173,23 +173,30 @@ class TaxaRequest(object):
         code = self.read_code_bytes(code_path)
         self.appId = sha256_multihash(code)
 
-    def set_code(self, code_file):
+    def set_code(self, code_path=None, raw_code=None):
         """
         Set App ID by providing full code file. The full code will also appear
         in request field
         """
-        self.code_path = code_file
-        self.code = self.read_code_bytes(code_file)
+        if code_path:
+            self.code_path = code_path
+            self.code = self.read_code_bytes(code_path)
+        else:
+            self.code_path = None
+            self.code = raw_code
+
         self.appId = sha256_multihash(self.code)
 
     # Output request JSON
-    def request_body(self, function=None, code_path=None, appid_from_code=None, data=None, json_data=None):
+    def request_body(self, function=None, code_path=None, code=None, appid_from_code_path=None, data=None, json_data=None):
         if function:
             self.function = function
         if code_path:
-            self.set_code(code_path)
-        if appid_from_code:
-            self.set_appid_from_code(appid_from_code)
+            self.set_code(code_path=code_path)
+        if code:
+            self.set_code(raw_code=code)
+        if appid_from_code_path:
+            self.set_appid_from_code(appid_from_code_path)
         if data:
             self.set_data(data)
         if json_data:
