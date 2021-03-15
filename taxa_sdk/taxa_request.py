@@ -146,11 +146,13 @@ class TaxaRequest(object):
         enc = self.__encryptData(data)
         return binascii.b2a_base64(enc).decode().replace("\n", '')
 
-    # Read the tSerevice python code file and
-    def read_code_bytes(self, python_code_path):
-        with open(python_code_path, 'rb') as file:
-            codeContent = file.read()
-        return binascii.b2a_base64(codeContent)
+    # Read the tSerevice python code file and covert to base64
+    def code_to_base64(self, code_path=None, raw_code=None):
+        if code_path:
+            with open(code_path, 'rb') as file:
+                raw_code = file.read()
+
+        return binascii.b2a_base64(raw_code)
 
     def set_json_data(self, json_data, encoding='base64'):
         """
@@ -170,7 +172,7 @@ class TaxaRequest(object):
         Set App ID by providing full code. The full code will not appear in
         request field
         """
-        code = self.read_code_bytes(code_path)
+        code = self.code_to_base64(code_path=code_path)
         self.appId = sha256_multihash(code)
 
     def set_code(self, code_path=None, raw_code=None):
@@ -178,23 +180,17 @@ class TaxaRequest(object):
         Set App ID by providing full code file. The full code will also appear
         in request field
         """
-        if code_path:
-            self.code_path = code_path
-            self.code = self.read_code_bytes(code_path)
-        else:
-            self.code_path = None
-            self.code = raw_code
-
+        self.code_path = code_path
+        self.code = self.code_to_base64(code_path=code_path, raw_code=raw_code)
         self.appId = sha256_multihash(self.code)
 
     # Output request JSON
     def request_body(self, function=None, code_path=None, code=None, appid_from_code_path=None, data=None, json_data=None):
         if function:
             self.function = function
-        if code_path:
-            self.set_code(code_path=code_path)
-        if code:
-            self.set_code(raw_code=code)
+
+        self.set_code(code_path=code_path, raw_code=code)
+
         if appid_from_code_path:
             self.set_appid_from_code(appid_from_code_path)
         if data:
