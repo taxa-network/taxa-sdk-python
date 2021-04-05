@@ -189,7 +189,8 @@ class TaxaRequest(object):
         if function:
             self.function = function
 
-        self.set_code(code_path=code_path, raw_code=code)
+        if not self.code and (code_path or code):
+            self.set_code(code_path=code_path, raw_code=code)
 
         if appid_from_code_path:
             self.set_appid_from_code(appid_from_code_path)
@@ -251,9 +252,11 @@ class TaxaRequest(object):
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            resp = requests.post(url, verify=self.verify, data=d, headers=headers)
+            self.raw_response = requests.post(url, verify=self.verify, data=d, headers=headers)
 
-        j = resp.json()
+        self.p("Got raw response from WebUI:", self.raw_response.text)
+
+        j = self.raw_response.json()
         if not j['status'] == 200:
             raise TaxaException('Taxa server returned %s: %s' % (
             j['status'], j['response']
