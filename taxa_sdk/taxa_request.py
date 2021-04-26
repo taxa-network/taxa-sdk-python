@@ -154,17 +154,9 @@ class TaxaRequest(object):
 
         return binascii.b2a_base64(raw_code)
 
-    def set_json_data(self, json_data, encoding='base64'):
-        """
-        Wrapper for `set_data` that runs the data through json.dumps,
-        for use when the server wants data in json format. This will ensure
-        that data going to the server is always valid json.
-        """
-        self.set_data(json.dumps(json_data), encoding)
-
     # Data in request, see doc
     def set_data(self, data, encoding="base64"):
-        self.__data = data
+        self.__data = json.dumps(data)
         self.__dataEncoding = encoding
 
     def set_appid_from_code_path(self, code_path):
@@ -189,15 +181,16 @@ class TaxaRequest(object):
         if function:
             self.function = function
 
-        if not self.code and (code_path or code):
+        if code_path or code:
             self.set_code(code_path=code_path, raw_code=code)
 
         if appid_from_code_path:
             self.set_appid_from_code(appid_from_code_path)
+
         if data:
             self.set_data(data)
-        if json_data:
-            self.set_json_data(json_data)
+        if json_data: # kept for backwards compatibility. Remove later.
+            self.set_data(json_data)
 
         # As of v0.1, we only support raw and base64 as encoding mode
         if self.__dataEncoding != "base64":
