@@ -127,10 +127,26 @@ class BaseKeyManager(object):
 
         self.p("Using core path: %s" %  self.core_path)
 
+    def validate_ini(self, config):
+        spid_len = 32
+        if len(config['IAS']['SPID']) != spid_len:
+            raise ValueError(
+                "IAS.SPID not valid in configuration file at %s (should be %s chars long)"
+                % (self.ini_path, spid_len)
+            )
+
+        pk_len = 32
+        if len(config['IAS']['PRIMARY_KEY']) != pk_len:
+            raise ValueError(
+                "IAS.PRIMARY_KEY not valid in configuration file at %s (should be %s chars long)"
+                % (self.ini_path, pk_len)
+            )
+
     def get_config(self):
         config = configparser.ConfigParser()
         config.optionxform = str # to preserve case sensitivity
         config.read(self.ini_path)
+        self.validate_ini(config)
         return config
 
     def write_hostname_to_ini(self, hostname):
@@ -247,6 +263,13 @@ class BaseKeyManager(object):
         client_cert_bytes = self.get_key_bytes("client_cert")
         self.check_size("Cert", client_cert_bytes, 64)
         return client_cert_bytes
+
+    @property
+    def client_pubkeyhash(self):
+        import hashlib
+        h = hashlib.sha256()
+        h.update(self.client_cert)
+        return h.digest()
 
     @property
     def client_key(self):
