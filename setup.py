@@ -3,13 +3,13 @@ from setuptools import setup, find_packages
 
 setup(
     name="taxa-sdk",
-    version='0.1.1',
+    version='0.2.0',
     description='Developer SDK for the Taxa Network',
     long_description=open('README.md').read(),
     long_description_content_type="text/markdown",
     author='TF Guo',
     author_email='tf@taxa.network',
-    url='https://github.com/taxa-network/SDK-Python',
+    url='https://github.com/taxa-network/taxa-sdk-python',
     packages=find_packages(),
     #scripts=['bin/'],
     include_package_data=True,
