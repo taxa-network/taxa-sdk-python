@@ -1,0 +1,20 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+name: "Taxa Core pipeline"
+trigger:
+  - "*"
+
+stages:
+  - stage: Test
+    jobs:
+      - job: Install
+        continueOnError: 'false'
+        workspace:
+            clean: outputs
+        steps:
+          - script: hostnamectl; sudo python2 setup.py develop; python2 -mtaxa_sdk.tests --forceip=localhost --module=hmac_sha256 SnippetTest
+            displayName: 'Installing Module'
+            env:
+              name: 'chris-dev'
