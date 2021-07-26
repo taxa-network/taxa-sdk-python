@@ -32,8 +32,25 @@ def find_lib_dir():
             "Could not find SDK install path to add taxa_client libs to library path"
         )
 
-    # need: liblog4cpp.so.5, libboost_system.so.1.58.0
     return "%s/bin/libs" % install_path
+
+def parse_os_release(item, start, end, verbose=False):
+    before_parsed = subprocess.Popen(
+        ["grep '^%s' /etc/os-release" % item], shell=True, stdout=subprocess.PIPE
+    ).stdout.read().decode().strip()
+
+    if verbose: print("before parse:", type(before_parsed), before_parsed)
+    return before_parsed[start:end]
+
+def get_os_dir():
+    if platform.platform().startswith("Darwin"):
+        return "OSX"
+    os_name = parse_os_release("NAME", 6, -1)
+    version = parse_os_release("VERSION_ID", 12, -1)
+    return "%s_%s" % (os_name, version)
+
+def get_os_specific_lib_dir():
+    return os.path.join(find_lib_dir(), get_os_dir())
 
 class BaseKeyManager(object):
 
@@ -68,7 +85,13 @@ class BaseKeyManager(object):
     @property
     def export(self):
         if self.do_export:
-            return "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:{libdir};".format(libdir=find_lib_dir())
+            env_var = "LD_LIBRARY_PATH"
+            if "OSX" in get_os_dir():
+                env_var = "DYLD_LIBRARY_PATH"
+
+            return "export {env_var}=${env_var}:{libdir};".format(
+                libdir=get_os_specific_lib_dir(), env_var=env_var
+            )
         else:
             return ""
 
@@ -92,7 +115,7 @@ class BaseKeyManager(object):
 
     @property
     def ini_path(self):
-        return os.path.join(self.core_dir, "taxaclient.ini")
+        return os.path.join(self.core_dir, "../../taxaclient.ini")
 
     @property
     def copied_ini_path(self):
@@ -100,7 +123,7 @@ class BaseKeyManager(object):
 
     @property
     def server_cert_path(self):
-        return os.path.join(self.core_dir, "sp_server.crt")
+        return os.path.join(self.core_dir, "../../sp_server.crt")
 
     @property
     def copied_server_cert_path(self):
@@ -120,7 +143,7 @@ class BaseKeyManager(object):
             # use defaults that come packaged with this module
             base_path = os.path.dirname(os.path.abspath(__file__))
             bin_path = os.path.join(base_path, "bin")
-            client = platform.system() + "_taxa_client"
+            client = os.path.join(get_os_specific_lib_dir(), "taxa_client")
             self.core_path = os.path.join(bin_path, client)
         else:
             self.core_path = core_path

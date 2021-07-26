@@ -113,6 +113,10 @@ class TaxaRequest(object):
 
         return ciphertext
 
+    def force_attestation(self):
+        self.key_manager.ip = self.get_ip()
+        self.key_manager.master_key
+
     def decrypt_data(self, encrypted_data):
         data = binascii.a2b_base64(encrypted_data)
         decrypted_data = b''
@@ -152,7 +156,10 @@ class TaxaRequest(object):
             with open(code_path, 'rb') as file:
                 raw_code = file.read()
 
-        return binascii.b2a_base64(raw_code)
+        try:
+            return binascii.b2a_base64(raw_code) # python 2.7
+        except TypeError:
+            return binascii.b2a_base64(bytes(raw_code,"utf-8")) # python 3
 
     # Data in request, see doc
     def set_data(self, data, encoding="base64"):
@@ -355,11 +362,11 @@ class TaxaRequest(object):
         )
         master_key = self.key_manager.master_key_key
         print(
-            "Master Key:     (%d) %s" % (len(master_key), binascii.b2a_hex(master_key))
+            "Master Key:     (%d) %s" % (len(master_key), binascii.b2a_base64(master_key))
         )
         iv = self.key_manager.master_key_iv
         print(
-            "IV:             (%d) %s" % (len(iv), iv)
+            "IV:             (%d) %s" % (len(iv), binascii.b2a_base64(iv))
         )
         if self.last_encrypted_response:
             ler = binascii.a2b_base64(self.last_encrypted_response)

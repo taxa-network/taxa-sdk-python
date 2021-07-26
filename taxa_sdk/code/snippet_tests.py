@@ -7,7 +7,10 @@ import cmath
 import hashlib
 import array
 import md5
+
+global random
 import random
+
 import hmac
 import pyaes
 import sha3
@@ -171,16 +174,20 @@ def test_snippets():
 
     def test_random():
         #state1 = random.getstate()
-        r1 = random.random()
-        #random.setstate(state1)
-        #r2 = random.random()
-        #do_assert(r1, r2)
+        r1 = random.Random().random()
+        do_assert(r1 > 0 and r1 < 1.0, True)
 
-    def test_hmac():
+    def test_hmac_sha256():
         h = hmac.new(bin, digestmod=hashlib.sha256)
         h.update(b"hello")
         d = h.hexdigest()
         do_assert(d, 'a4d000deb3faec0b6d3acf5730c5973727478fa918fb65195c75b0a62f7f12c8')
+
+    def test_hmac_sha1():
+        h = hmac.new(bin, digestmod=hashlib.sha1)
+        h.update(b"hello")
+        d = h.hexdigest()
+        do_assert(d, 'e3d6ee7f48a94e137b1a8de06dec9ac54d6230cd')
 
     def test_sha3():
         k = sha3.sha3_512()

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js" integrity="sha512-nOQuvD9nKirvxDdvQ9OMqe2dgapbPB7vYAMrzJihw5m+aNcf0dX53m6YxM4LgA9u8e9eg9QX+/+mPu8kCNpV2A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script
+  src="https://code.jquery.com/jquery-3.6.0.min.js"
+  integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4="
+  crossorigin="anonymous"></script>
+    <script>
+      // from https://stackoverflow.com/questions/246801/how-can-you-encode-a-string-to-base64-in-javascript
+      var Base64={_keyStr:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=",encode:function(e){var t="";var n,r,i,s,o,u,a;var f=0;e=Base64._utf8_encode(e);while(f<e.length){n=e.charCodeAt(f++);r=e.charCodeAt(f++);i=e.charCodeAt(f++);s=n>>2;o=(n&3)<<4|r>>4;u=(r&15)<<2|i>>6;a=i&63;if(isNaN(r)){u=a=64}else if(isNaN(i)){a=64}t=t+this._keyStr.charAt(s)+this._keyStr.charAt(o)+this._keyStr.charAt(u)+this._keyStr.charAt(a)}return t},decode:function(e){var t="";var n,r,i;var s,o,u,a;var f=0;e=e.replace(/[^A-Za-z0-9\+\/\=]/g,"");while(f<e.length){s=this._keyStr.indexOf(e.charAt(f++));o=this._keyStr.indexOf(e.charAt(f++));u=this._keyStr.indexOf(e.charAt(f++));a=this._keyStr.indexOf(e.charAt(f++));n=s<<2|o>>4;r=(o&15)<<4|u>>2;i=(u&3)<<6|a;t=t+String.fromCharCode(n);if(u!=64){t=t+String.fromCharCode(r)}if(a!=64){t=t+String.fromCharCode(i)}}t=Base64._utf8_decode(t);return t},_utf8_encode:function(e){e=e.replace(/\r\n/g,"\n");var t="";for(var n=0;n<e.length;n++){var r=e.charCodeAt(n);if(r<128){t+=String.fromCharCode(r)}else if(r>127&&r<2048){t+=String.fromCharCode(r>>6|192);t+=String.fromCharCode(r&63|128)}else{t+=String.fromCharCode(r>>12|224);t+=String.fromCharCode(r>>6&63|128);t+=String.fromCharCode(r&63|128)}}return t},_utf8_decode:function(e){var t="";var n=0;var r=c1=c2=0;while(n<e.length){r=e.charCodeAt(n);if(r<128){t+=String.fromCharCode(r);n++}else if(r>191&&r<224){c2=e.charCodeAt(n+1);t+=String.fromCharCode((r&31)<<6|c2&63);n+=2}else{c2=e.charCodeAt(n+1);c3=e.charCodeAt(n+2);t+=String.fromCharCode((r&15)<<12|(c2&63)<<6|c3&63);n+=3}}return t}}
+      {{{ vars }}}
+    </script>
+    <style>
+      textarea {width: 400px; height: 200px}
+    </style>
+  </head>
+  <body>
+    <h1>Taxa Web UI</h1>
+    Attestation completed with server at: <strong class="ip"></strong><br>
+    Code:<br>
+    <textarea id="code">@taxa.route("/test")
+def test():
+    response.add(request.data['a'])</textarea>
+    <br>
+    Function: <input type="text" id="function" value="test"><br>
+    Data: <input type="text" id="data" value='{"a": "decryption was successful"}'>
+    <br><br>
+    <input type="button" id="submit" value="Send">
+    <div id="response"></div>
+  </body>
+  <script>
+    function get_app_id(code) {
+      return CryptoJS.SHA256(code).toString()
+    }
+    function decrypt_response(encrypted_response) {
+      return CryptoJS.AES.decrypt(
+        encrypted_response,
+        CryptoJS.enc.Base64.parse(master_key),
+        {
+          iv: CryptoJS.enc.Base64.parse(master_key_iv),
+          mode: CryptoJS.mode.CBC,
+          padding: CryptoJS.pad.Pkcs7
+        }
+      ).toString(CryptoJS.enc.Utf8);
+    }
+    function submit_request() {
+      var code = Base64.encode($("#code").val());
+      var func = $("#function").val();
+      var data = $("#data").val();
+
+      $.post({
+        url: "https://" + ip + ":8002/api/contract/request",
+        data: {
+          "taxa_version": "0",
+          "app_id": get_app_id(code),
+          "cert": client_cert,
+          "function": "/" + func,
+          "header": {"src": "user", "type": "text/plain"},
+          "data": data,
+          "content-transfer-encoding": "base64",
+          "code": code
+        }
+      }).done(function(response){
+        mock_response = { // known good values created with python SDK using the same keys
+          'version': '0.1', 'pyxa-version': '0.1', 'response-code': '1000',
+          'direction': '0', 'session-size-remaining': 8189, 'session-usage': '0.02%',
+          'content-type': 'text/plain', 'content-transfer-encoding': 'base64',
+          'public-message': '', 'encrypted_data': 'Xv/8/oz0CczTuVZiAYYEtSWb/46tjnyK2LtBzcO4Noo=',
+          'decrypted_data': 'decryption was successful'
+        }
+
+        console.log("Done!");
+        var decrypted = decrypt_response(response['encrypted_data']);
+        console.log("decrypted result:", decrypted);
+        $("#response").text(decrypted);
+      });
+    }
+    $(document).ready(function(){
+      $(".ip").text(ip);
+      $("#submit").click(function(){
+        submit_request();
+      });
+    });
+  </script>
+</html>
