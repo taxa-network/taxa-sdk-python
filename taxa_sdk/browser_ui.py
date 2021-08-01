@@ -1,8 +1,16 @@
 from __future__ import print_function
 
+import sys
 import binascii
 import os
 from .taxa_request import TaxaRequest
+
+try:
+    from urllib.parse import urlparse
+except ImportError:
+    from urlparse import urlparse
+
+uri = urlparse(sys.argv[1])
 
 def get_template():
     template = os.path.abspath(os.path.join(__file__, "../browser_ui.html"))
@@ -14,7 +22,7 @@ def make_nice(bin):
 
 def make_html(verbose):
     r = TaxaRequest("browserUI.json", verbose=verbose)
-    r.ip = "52.138.6.109"
+    r.ip = uri.netloc
     r.force_attestation()
 
     vars = (
@@ -31,8 +39,12 @@ def make_html(verbose):
     ]
 
 def write_browser_ui():
-    html, pubkeyhash = make_html(verbose=False)
-    filename = "/tmp/taxa_%s.html" % pubkeyhash[:8]
+    try:
+        html, pubkeyhash = make_html(verbose=False)
+        filename = "/tmp/taxa_%s.html" % pubkeyhash[:8]
+    except Exception as exc:
+        filename = "/tmp/taxa_error.html"
+        html = "<pre>" + "%s: %s" % (str(exc.__class__.__name__), str(exc)) + "</pre>"
 
     with open(filename, 'w') as f:
         f.write(html)
