@@ -49,6 +49,9 @@ class TaxaRequest(object):
     # ignore https certificate errors
     verify = False
 
+    protocol = "http"
+    port = 80
+
     # where the node IP comes from, wither 'p2p', or 'node_distributor'
     node_source = 'p2p'
 
@@ -237,7 +240,7 @@ class TaxaRequest(object):
 
     @property
     def base_url(self):
-        return "https://" + self.get_ip() + ":8002"
+        return "%s://%s:%d" % (self.protocol, self.get_ip(), self.port)
 
     def send(self, **convenient):
         """

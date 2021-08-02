@@ -43,7 +43,8 @@ def parse_os_release(item, start, end, verbose=False):
     return before_parsed[start:end]
 
 def get_os_dir():
-    if platform.platform().startswith("Darwin"):
+    plat = platform.platform()
+    if plat.startswith("Darwin") or plat.startswith("macOS"):
         return "OSX"
     os_name = parse_os_release("NAME", 6, -1)
     version = parse_os_release("VERSION_ID", 12, -1)
@@ -66,6 +67,8 @@ class BaseKeyManager(object):
 
     # to skip https certificate verification (for beta)
     verify = False
+    protocol = "http"
+    port = 80
 
     # the amount of times attestation will be retried before giving up
     attestation_retries = 3
@@ -190,7 +193,7 @@ class BaseKeyManager(object):
         if not self.ip:
             raise TaxaException("IP not set, can't do attestation")
 
-        url = "https://" + self.ip + ":8002/api/files/user_cert_init"
+        url = "%s://%s:%d/api/files/user_cert_init" % (self.protocol, self.ip, self.port)
         headers = {'accept': 'application/json'}
 
         client_cert_content = base64.b64encode(self.client_cert)
