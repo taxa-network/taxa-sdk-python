@@ -155,14 +155,14 @@ class BaseKeyManager(object):
 
     def validate_ini(self, config):
         spid_len = 32
-        if len(config['IAS']['SPID']) != spid_len:
+        if len(config.get('IAS', 'SPID')) != spid_len:
             raise ValueError(
                 "IAS.SPID not valid in configuration file at %s (should be %s chars long)"
                 % (self.ini_path, spid_len)
             )
 
         pk_len = 32
-        if len(config['IAS']['PRIMARY_KEY']) != pk_len:
+        if len(config.get('IAS', 'PRIMARY_KEY')) != pk_len:
             raise ValueError(
                 "IAS.PRIMARY_KEY not valid in configuration file at %s (should be %s chars long)"
                 % (self.ini_path, pk_len)

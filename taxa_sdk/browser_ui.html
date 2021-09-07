@@ -6,18 +6,70 @@
   src="https://code.jquery.com/jquery-3.6.0.min.js"
   integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4="
   crossorigin="anonymous"></script>
-    <script>
-      // from https://stackoverflow.com/questions/246801/how-can-you-encode-a-string-to-base64-in-javascript
-      var Base64={_keyStr:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=",encode:function(e){var t="";var n,r,i,s,o,u,a;var f=0;e=Base64._utf8_encode(e);while(f<e.length){n=e.charCodeAt(f++);r=e.charCodeAt(f++);i=e.charCodeAt(f++);s=n>>2;o=(n&3)<<4|r>>4;u=(r&15)<<2|i>>6;a=i&63;if(isNaN(r)){u=a=64}else if(isNaN(i)){a=64}t=t+this._keyStr.charAt(s)+this._keyStr.charAt(o)+this._keyStr.charAt(u)+this._keyStr.charAt(a)}return t},decode:function(e){var t="";var n,r,i;var s,o,u,a;var f=0;e=e.replace(/[^A-Za-z0-9\+\/\=]/g,"");while(f<e.length){s=this._keyStr.indexOf(e.charAt(f++));o=this._keyStr.indexOf(e.charAt(f++));u=this._keyStr.indexOf(e.charAt(f++));a=this._keyStr.indexOf(e.charAt(f++));n=s<<2|o>>4;r=(o&15)<<4|u>>2;i=(u&3)<<6|a;t=t+String.fromCharCode(n);if(u!=64){t=t+String.fromCharCode(r)}if(a!=64){t=t+String.fromCharCode(i)}}t=Base64._utf8_decode(t);return t},_utf8_encode:function(e){e=e.replace(/\r\n/g,"\n");var t="";for(var n=0;n<e.length;n++){var r=e.charCodeAt(n);if(r<128){t+=String.fromCharCode(r)}else if(r>127&&r<2048){t+=String.fromCharCode(r>>6|192);t+=String.fromCharCode(r&63|128)}else{t+=String.fromCharCode(r>>12|224);t+=String.fromCharCode(r>>6&63|128);t+=String.fromCharCode(r&63|128)}}return t},_utf8_decode:function(e){var t="";var n=0;var r=c1=c2=0;while(n<e.length){r=e.charCodeAt(n);if(r<128){t+=String.fromCharCode(r);n++}else if(r>191&&r<224){c2=e.charCodeAt(n+1);t+=String.fromCharCode((r&31)<<6|c2&63);n+=2}else{c2=e.charCodeAt(n+1);c3=e.charCodeAt(n+2);t+=String.fromCharCode((r&15)<<12|(c2&63)<<6|c3&63);n+=3}}return t}}
+    <script type="text/javascript">
       {{{ vars }}}
+
+      const base58_chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+
+      const create_base58_map = () => {
+        const base58M = Array(256).fill(-1)
+        for (let i = 0; i < base58_chars.length; ++i)
+          base58M[base58_chars.charCodeAt(i)] = i
+
+        return base58M
+      }
+      const base58Map = create_base58_map()
+
+      const binary_to_base58 = uint8array => {
+        const result = []
+
+        for (const byte of uint8array) {
+          let carry = byte
+          for (let j = 0; j < result.length; ++j) {
+            const x = (base58Map[result[j]] << 8) + carry
+            result[j] = base58_chars.charCodeAt(x % 58)
+            carry = (x / 58) | 0
+          }
+          while (carry) {
+            result.push(base58_chars.charCodeAt(carry % 58))
+            carry = (carry / 58) | 0
+          }
+        }
+
+        for (const byte of uint8array)
+          if (byte) break
+          else result.push('1'.charCodeAt(0))
+
+        result.reverse()
+
+        return String.fromCharCode(...result)
+      }
+
+      enc_modes = {
+         iv: CryptoJS.enc.Base64.parse(master_key_iv),
+         mode: CryptoJS.mode.CBC,
+         padding: CryptoJS.pad.Pkcs7
+      }
     </script>
     <style>
       textarea {width: 400px; height: 200px}
+      #error_response {
+          background-color: #F2BBBB;
+          color: red; display: none;
+          padding: 10px; margin-top: 10px;
+      }
+      #error_response .code {font-weight: bold}
+      #success_response {
+          display: none;
+          background-color: #88ec88;
+          padding: 10px; margin-top: 10px;
+      }
     </style>
   </head>
   <body>
-    <h1>Taxa Web UI</h1>
+    <h1>Taxa Browser UI</h1>
     Attestation completed with server at: <strong class="ip"></strong><br>
+    AppID: <input type="text" id="appid"><br>
     Code:<br>
     <textarea id="code">@taxa.route("/test")
 def test():
@@ -27,53 +79,76 @@ def test():
     Data: <input type="text" id="data" value='{"a": "decryption was successful"}'>
     <br><br>
     <input type="button" id="submit" value="Send">
-    <div id="response"></div>
-  </body>
-  <script>
-    function get_app_id(code) {
-      return CryptoJS.SHA256(code).toString()
+    <div id="success_response"></div>
+    <div id="error_response">
+        <div class="code"></div>
+        <div class="message"></div>
+    </div>
+
+  <script type="text/javascript">
+    function str_to_b64(s) {
+      return CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(s))
+    }
+    function update_app_id(code) {
+      const fromHexString = hexString =>
+        new Uint8Array(hexString.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+      
+      var hex_hash = CryptoJS.SHA256(get_b64_code()).toString();
+      var merged = new Uint8Array(34)
+      merged.set(new Uint8Array([18, 32])); // 18 and 32 are from the miltihash spec
+      merged.set(fromHexString(hex_hash), 2);
+      var appid = binary_to_base58(merged)
+      $("#appid").val(appid);
+    }
+    function get_b64_code() {
+      var raw_code = $("#code").val().trim();
+      return str_to_b64(raw_code);
     }
     function decrypt_response(encrypted_response) {
       return CryptoJS.AES.decrypt(
-        encrypted_response,
-        CryptoJS.enc.Base64.parse(master_key),
-        {
-          iv: CryptoJS.enc.Base64.parse(master_key_iv),
-          mode: CryptoJS.mode.CBC,
-          padding: CryptoJS.pad.Pkcs7
-        }
+        encrypted_response, CryptoJS.enc.Base64.parse(master_key), enc_modes
       ).toString(CryptoJS.enc.Utf8);
     }
+    function encrypt_data(data) {
+      return CryptoJS.AES.encrypt(
+        data, CryptoJS.enc.Base64.parse(master_key), enc_modes
+      ).toString();
+    }
+    function set_error(code, message) {
+      $("#error_response .message").text(message);
+      $("#error_response .code").text("Code: " + code);
+      $("#error_response").show();
+      $("#success_response").hide();
+    }
     function submit_request() {
-      var code = Base64.encode($("#code").val());
       var func = $("#function").val();
       var data = $("#data").val();
 
       $.post({
-        url: "https://" + ip + ":8002/api/contract/request",
+        url: "http://" + ip + "/api/contract/request",
         data: {
           "taxa_version": "0",
-          "app_id": get_app_id(code),
+          "app_id": $("#appid").val(),
           "cert": client_cert,
           "function": "/" + func,
           "header": {"src": "user", "type": "text/plain"},
-          "data": data,
+          "data": encrypt_data(data),
           "content-transfer-encoding": "base64",
-          "code": code
+          "code": get_b64_code()
         }
       }).done(function(response){
-        mock_response = { // known good values created with python SDK using the same keys
-          'version': '0.1', 'pyxa-version': '0.1', 'response-code': '1000',
-          'direction': '0', 'session-size-remaining': 8189, 'session-usage': '0.02%',
-          'content-type': 'text/plain', 'content-transfer-encoding': 'base64',
-          'public-message': '', 'encrypted_data': 'Xv/8/oz0CczTuVZiAYYEtSWb/46tjnyK2LtBzcO4Noo=',
-          'decrypted_data': 'decryption was successful'
-        }
+        var j_response = JSON.parse(response['response'].replace(/'/g, '"')); // TODO: WebUI/taxa-server should return valid json
+	      var decrypted = decrypt_response(j_response['data']);
 
-        console.log("Done!");
-        var decrypted = decrypt_response(response['encrypted_data']);
-        console.log("decrypted result:", decrypted);
-        $("#response").text(decrypted);
+	      if(j_response['response-code'] != 1000) {
+          set_error(j_response['response-code'], decrypted)
+        } else {
+	        $("#success_response").text(decrypted).show();
+          $("#error_response").hide();
+        }
+      }).fail(function(xhr, textStatus){
+        var response_json = JSON.parse(xhr.responseText);
+        set_error(response_json['status'], response_json['response']);
       });
     }
     $(document).ready(function(){
@@ -81,6 +156,11 @@ def test():
       $("#submit").click(function(){
         submit_request();
       });
+      $("#code").keyup(function(){
+        update_app_id();
+      });
+      update_app_id();
     });
   </script>
+  </body>
 </html>

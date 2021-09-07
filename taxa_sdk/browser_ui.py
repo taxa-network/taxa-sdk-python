@@ -10,7 +10,8 @@ try:
 except ImportError:
     from urlparse import urlparse
 
-uri = urlparse(sys.argv[1])
+raw_uri = sys.argv[1]
+uri = urlparse(raw_uri)
 
 def get_template():
     template = os.path.abspath(os.path.join(__file__, "../browser_ui.html"))
@@ -21,7 +22,8 @@ def make_nice(bin):
     return binascii.b2a_base64(bin)[:-1].decode()
 
 def make_html(verbose):
-    r = TaxaRequest("browserUI.json", verbose=verbose)
+    key_path = os.path.join(os.path.expanduser("~"), "browserUI.json")
+    r = TaxaRequest(key_path, verbose=verbose)
     r.ip = uri.netloc
     r.force_attestation()
 
@@ -44,7 +46,7 @@ def write_browser_ui():
         filename = "/tmp/taxa_%s.html" % pubkeyhash[:8]
     except Exception as exc:
         filename = "/tmp/taxa_error.html"
-        html = "<pre>" + "%s: %s" % (str(exc.__class__.__name__), str(exc)) + "</pre>"
+        html = "<b>%s</b><br><pre>%s: %s</pre>" % (raw_uri, str(exc.__class__.__name__), str(exc))
 
     with open(filename, 'w') as f:
         f.write(html)
