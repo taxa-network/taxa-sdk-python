@@ -164,7 +164,7 @@ class TaxaRequest(object):
         try:
             return binascii.b2a_base64(raw_code)[:-1] # python 2.7
         except TypeError:
-            return binascii.b2a_base64(bytes(raw_code,"utf-8"), newline=False) # python 3
+            return binascii.b2a_base64(bytes(raw_code,"utf-8"))[:-1] # python 3
 
     # Data in request, see doc
     def set_data(self, data, encoding="base64"):
