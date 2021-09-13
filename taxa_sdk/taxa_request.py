@@ -71,7 +71,7 @@ class TaxaRequest(object):
     def __init__(self, identity=None, core_path=None, client_cert_path=None,
                  client_key_path=None, master_key_path=None, verbose=False,
                  p2p_node=None, peer_cert_path=None, peer_cert_bytes=None,
-                 do_export=True):
+                 peer_cert_b64=None, do_export=True):
         self.verbose = verbose
         if client_cert_path or client_key_path or master_key_path:
             self.key_manager = FileKeyManager(
@@ -93,6 +93,8 @@ class TaxaRequest(object):
                 self.peer_cert = peer_cert_path.read()
         elif peer_cert_bytes:
             self.peer_cert = peer_cert_bytes
+        elif peer_cert_b64:
+            self.peer_cert = base64.b64decode(peer_cert_b64)
         else:
             self.peer_cert = self.key_manager.client_cert
 
@@ -157,12 +159,12 @@ class TaxaRequest(object):
     def code_to_base64(self, code_path=None, raw_code=None):
         if code_path:
             with open(code_path, 'rb') as file:
-                raw_code = file.read()
+                raw_code = file.read().strip()
 
         try:
-            return binascii.b2a_base64(raw_code) # python 2.7
+            return binascii.b2a_base64(raw_code)[:-1] # python 2.7
         except TypeError:
-            return binascii.b2a_base64(bytes(raw_code,"utf-8")) # python 3
+            return binascii.b2a_base64(bytes(raw_code,"utf-8"), newline=False) # python 3
 
     # Data in request, see doc
     def set_data(self, data, encoding="base64"):
