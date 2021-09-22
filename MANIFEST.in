@@ -1,2 +1,10 @@
 include taxa_sdk/bin/*
 include taxa_sdk/bin/libs/*
+include taxa_sdk/bin/libs/OSX/*
+include taxa_sdk/bin/libs/Ubuntu_16.04/*
+include taxa_sdk/bin/libs/Ubuntu_18.04/*
+include taxa_sdk/bin/Taxa_SDK.App/Contents/*
+include taxa_sdk/bin/Taxa_SDK.App/Contents/MacOS/*
+include taxa_sdk/bin/Taxa_SDK.App/Recources/*
+include taxa_sdk/bin/Taxa_SDK.App/Recources/Scripts/*
+include taxa_sdk/bin/Taxa_SDK.App/Recources/description.rtfd/*

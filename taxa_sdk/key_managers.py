@@ -202,7 +202,7 @@ class BaseKeyManager(object):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             response = requests.post(
-                url, headers=headers, verify=self.verify, data={
+                url, headers=headers, verify=self.verify, timeout=20, data={
                     "contentTransferEncoding": "base64",
                     "content": client_cert_content,
                 }
