@@ -1,6 +1,6 @@
 import subprocess
 from .browser_ui import write_browser_ui
-from .key_managers import get_os_dir
+from .platform_detect import get_os_dir
 
 filename = write_browser_ui()
 

@@ -16,7 +16,7 @@ import requests
 
 from .key_managers import FileKeyManager, IdentityKeyManager
 from .exceptions import *
-
+from .platform_detect import get_os_dir
 
 
 # Request generation and sending.
@@ -164,7 +164,7 @@ class TaxaRequest(object):
         try:
             return binascii.b2a_base64(raw_code)[:-1] # python 2.7
         except TypeError:
-            return binascii.b2a_base64(bytes(raw_code,"utf-8"))[:-1] # python 3
+            return binascii.b2a_base64(bytes(raw_code,"utf-8"), newline=False) # python 3
 
     # Data in request, see doc
     def set_data(self, data, encoding="base64"):
@@ -331,8 +331,14 @@ class TaxaRequest(object):
         peer_cert = os.path.join(os.path.expanduser("~"), ".taxa_peer_cert")
         with open(peer_cert, 'wb') as f:
             f.write(self.peer_cert)
-        command = "./taxa-p2p-node -d %s -appIdPath %s -client" % (
-            node, peer_cert
+
+        tax = ""
+        if 'OSX' in get_os_dir():
+            self.p("using OSX p2p binary")
+            tag = "_osx"
+
+        command = "./taxa-p2p-node%s -d %s -appIdPath %s -client" % (
+            tag, node, peer_cert
         )
         full_cmd = "cd %s; %s" % (p2p_path, command)
         self.p("p2p called: %s" % full_cmd)
