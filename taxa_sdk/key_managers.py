@@ -84,7 +84,7 @@ class BaseKeyManager(object):
 
     @property
     def ini_path(self):
-        return os.path.join(self.core_dir, "../../taxaclient.ini")
+        return os.path.normpath(os.path.join(self.core_dir, "../../taxaclient.ini"))
 
     @property
     def copied_ini_path(self):
@@ -92,7 +92,7 @@ class BaseKeyManager(object):
 
     @property
     def server_cert_path(self):
-        return os.path.join(self.core_dir, "../../sp_server.crt")
+        return os.path.normpath(os.path.join(self.core_dir, "../../sp_server.crt"))
 
     @property
     def copied_server_cert_path(self):
@@ -134,12 +134,23 @@ class BaseKeyManager(object):
                 % (self.ini_path, pk_len)
             )
 
-    def get_config(self):
+    def get_config(self, validate=True):
         config = configparser.ConfigParser()
         config.optionxform = str # to preserve case sensitivity
         config.read(self.ini_path)
-        self.validate_ini(config)
+        if validate: self.validate_ini(config)
         return config
+
+    def write_intel_keys_to_config(self, spid, pk):
+        """
+        Part of the installation process. Writes intel keys to the ini file. This function writes
+        to a file in yourt instalation folder, so sudo is probably required.
+        """
+        config = self.get_config(validate=False)
+        config.set('IAS', 'SPID', spid)
+        config.set('IAS', 'PRIMARY_KEY', pk)
+        with open(self.ini_path, 'w') as configfile:
+            config.write(configfile)
 
     def write_hostname_to_ini(self, hostname):
         config = self.get_config()
