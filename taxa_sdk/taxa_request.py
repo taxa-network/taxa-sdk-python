@@ -332,7 +332,7 @@ class TaxaRequest(object):
         with open(peer_cert, 'wb') as f:
             f.write(self.peer_cert)
 
-        tax = ""
+        tag = ""
         if 'OSX' in get_os_dir():
             self.p("using OSX p2p binary")
             tag = "_osx"
