@@ -98,6 +98,9 @@ class TaxaRequest(object):
         else:
             self.peer_cert = self.key_manager.client_cert
 
+        self.key_manager.port = self.port
+        self.key_manager.protocol = self.protocol
+
     def p(self, *args):
         if self.verbose: print("SDK:", *args)
 
