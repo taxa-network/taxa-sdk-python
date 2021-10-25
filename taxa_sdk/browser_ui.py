@@ -6,9 +6,9 @@ import os
 from .taxa_request import TaxaRequest
 
 try:
-    from urllib.parse import urlparse
+    from urllib.parse import urlparse, parse_qs
 except ImportError:
-    from urlparse import urlparse
+    from urlparse import urlparse, parse_qs
 
 raw_uri = sys.argv[1]
 uri = urlparse(raw_uri)
@@ -23,7 +23,8 @@ def make_nice(bin):
 
 def make_html(verbose):
     key_path = os.path.join(os.path.expanduser("~"), "browserUI.json")
-    r = TaxaRequest(key_path, verbose=verbose)
+    peer_cert = parse_qs(uri.query).get('peer_cert', [None])[0]
+    r = TaxaRequest(key_path, verbose=verbose, peer_cert_b64=peer_cert)
     r.ip = uri.netloc
     r.force_attestation()
 
