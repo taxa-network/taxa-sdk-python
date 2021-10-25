@@ -25,7 +25,7 @@ def make_html(verbose):
     key_path = os.path.join(os.path.expanduser("~"), "browserUI.json")
     peer_cert = parse_qs(uri.query).get('peer_cert', [None])[0]
     r = TaxaRequest(key_path, verbose=verbose, peer_cert_b64=peer_cert)
-    r.ip = uri.netloc
+    r.ip = uri.netloc if uri.netloc != "p2p" else None
     r.force_attestation()
 
     vars = (
