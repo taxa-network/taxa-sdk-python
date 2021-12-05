@@ -66,14 +66,14 @@ class BaseKeyManager(object):
 
     @property
     def client_connect_cmd(self):
-        return "cd; {export} ./taxa_client connect {client_key} {master_key}".format(
+        return "cd; {export} ./taxa_client connect taxaclient.ini {client_key} {master_key}".format(
             core_dir=self.core_dir, client_key=self.client_key_path,
             master_key=self.master_key_path, export=self.export
         )
 
     @property
     def gen_key_cmd(self):
-        return "cd; {export} ./taxa_client keygen {client_cert} {client_key}".format(
+        return "cd; {export} ./taxa_client keygen taxaclient.ini {client_cert} {client_key}".format(
             core_dir=self.core_dir, client_cert=self.client_cert_path,
             client_key=self.client_key_path, export=self.export
         )
