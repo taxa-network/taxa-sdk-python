@@ -286,6 +286,8 @@ class TaxaRequest(object):
             raise TserviceError(error_msg)
         elif rc == '4001':
             raise SessionLimitsExceeded()
+        elif rc == '3000':
+            raise InvalidRequest(response['data'])
 
         return self.decrypt_response(response)
 
