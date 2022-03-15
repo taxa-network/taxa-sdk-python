@@ -7,6 +7,19 @@ It works with both Python 2.7 and Python 3.5+.
 
 1. Download the zip file from Github. Extract into a folder anywhere.
 2. On the command line, navigate to that folder and run the install script: `python setup.py install`
+3. After installation, you must install the Intel keys by running the command:
+
+```
+python -m taxa_sdk.install_intel_keys [key1] [key2]
+```
+
+4. If you are on OSX, you need to install the Apple signed libraries:
+
+```
+python -m taxa_sdk.install_osx_libs --catalina
+```
+
+(replace `--catalina` with whatever version of OSX you are using)
 
 ## Documentation
 
