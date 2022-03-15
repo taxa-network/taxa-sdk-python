@@ -8,12 +8,10 @@ It works with both Python 2.7 and Python 3.5+.
 1. Download the zip file from Github. Extract into a folder anywhere.
 2. On the command line, navigate to that folder and run the install script: `python setup.py install`
 3. To enable the SGX's remote attestation feature on your node, follow these instructions to generate a service provider ID (SPID) and primary key:
-
-Register with Intel [here](https://www.intel.com/content/www/us/en/forms/developer/standard-registration.html)
-Go to https://api.portal.trustedservices.intel.com/EPID-attestation
-In the Development access section, click the Subscribe (unlickable) button. Follow the steps to generate an SPID and Primary Key.
-
-The run the following command, including your newly generated SPID and primary key:
+  a. Register with Intel [here](https://www.intel.com/content/www/us/en/forms/developer/standard-registration.html).
+  b. Go to https://api.portal.trustedservices.intel.com/EPID-attestation
+  c. In the Development access section, click the Subscribe (unlickable) button. Follow the steps to generate an SPID and Primary Key.
+  d. Then run the following command, including your newly generated SPID and primary key:
 
 ```
 python -m taxa_sdk.install_intel_keys [SPID] [primary key]
