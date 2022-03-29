@@ -20,12 +20,11 @@ It works with both Python 2.7 and Python 3.5+.
 4. If you are on OSX, you need to install the Apple signed libraries:
 
 ```
-sudo python -m taxa_sdk.install_osx_libs --catalina
+sudo python -m taxa_sdk.install_osx_libs
 ```
 
 (Note the requirement of sudo)
 
-(replace `--catalina` with whatever version of OSX you are using)
 
 ## Documentation
 
