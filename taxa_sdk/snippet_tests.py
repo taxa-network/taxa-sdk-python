@@ -21,7 +21,7 @@ def make_snippets(module, snippet, pre_snippet=''):
     if module:
         import_module = "import %s" % module
 
-    return """%s
+    return ("""%s
 @taxa.route("/test")
 def test():
     %s # pre-snippet
@@ -29,6 +29,7 @@ def test():
     response.add(str(result))
 """ % (import_module, pre_snippet, snippet),
     "%s; %s; local_value = %s" % (import_module, pre_snippet, snippet)
+)
 
 class BaseSnippetTest(object):
     def compare(self, value):
@@ -46,7 +47,7 @@ class BaseSnippetTest(object):
                 pre_snippet = snippet[0]
                 snippet = snippet[1]
 
-            remote, local = make_snippet("local", self.module, snippet, pre_snippet)
+            remote, local = make_snippets(self.module, snippet, pre_snippet)
 
             response = request.send(function="test", code=remote)
             exec(local, g)
@@ -177,9 +178,7 @@ if __name__ == '__main__':
     parser.add_argument('unittest_args', nargs='*')
 
     args = parser.parse_args()
-    if args.forcenode:
-        FORCEIP = nodes[args.forcenode]
-    else:
+    if args.forceip:
         FORCEIP = args.forceip
 
     USE_PACKAGED = not args.nopackagedcore
