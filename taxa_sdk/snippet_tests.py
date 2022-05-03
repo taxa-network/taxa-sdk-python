@@ -50,9 +50,11 @@ class BaseSnippetTest(object):
             remote, local = make_snippets(self.module, snippet, pre_snippet)
 
             response = request.send(function="test", code=remote)
-            exec(local, g)
+            print(snippet, ":", "remote->", response['decrypted_data'], end="")
 
-            print(snippet, ":", "remote->", response['decrypted_data'], "local->", self.compare(g['local_value']))
+            exec(local, g)
+            print("local->", self.compare(g['local_value']))
+
             self.assertEqual(
                 self.compare(response['decrypted_data']),
                 self.compare(g['local_value']),
@@ -126,46 +128,32 @@ class ECDSATest(BaseSnippetTest, BaseServerTest):
     module = "ecdsa"
     snippets = [
         (
+            'rng1 = ecdsa.PRNG(b"seed")',
+            "ecdsa.SigningKey.generate(entropy=rng1).to_pem()"
+        ),
+        (
             'sk = ecdsa.SigningKey.generate();'
             'vk = sk.verifying_key;'
             'signature = sk.sign(b"message")',
             'vk.verify(signature, b"message") # NIST192p;'
         ),
-        # (
-        #     'sk = ecdsa.SigningKey.generate(curve=ecdsa.NIST384p);'
-        #     'vk = sk.verifying_key;'
-        #     'signature = sk.sign(b"message")',
-        #     'vk.verify(signature, b"message") #NIST384p'
-        # ),
+        (
+            'sk = ecdsa.SigningKey.generate(curve=ecdsa.NIST384p);'
+            'vk = sk.verifying_key;'
+            'signature = sk.sign(b"message")',
+            'vk.verify(signature, b"message") # NIST384p'
+        ),
         (
             'sk = ecdsa.SigningKey.generate(curve=ecdsa.NIST384p);'
             'sk2 = ecdsa.SigningKey.from_string(sk.to_string(), curve=ecdsa.NIST384p)',
             'sk == sk2'
-        )
-
-
-        # vk = sk.verifying_key
-        # vk_string = vk.to_string()
-        # vk2 = VerifyingKey.from_string(vk_string, curve=NIST384p)
-        # # vk and vk2 are the same key
-        #
-        # sk = SigningKey.generate(curve=NIST384p)
-        # vk = sk.verifying_key
-        # vk_pem = vk.to_pem()
-        # vk2 = VerifyingKey.from_pem(vk_pem)
-        #
-        # rng1 = PRNG(b"seed")
-        # sk1 = SigningKey.generate(entropy=rng1)
-        # rng2 = PRNG(b"seed")
-        # sk2 = SigningKey.generate(entropy=rng2)
-        # # sk1 and sk2 are the same key
-        #
-        # ecdh = ECDH(curve=NIST256p)
-        # ecdh.generate_private_key()
-        # local_public_key = ecdh.get_public_key()
-        #
-        # sk = SigningKey.generate(curve=NIST521p)
-        # vk = sk.verifying_key
+        ),
+        (
+            "msg = b'Hello World!';"
+            "private_key = b'0x2574c4b3ba6ecc8714740cedf1554ec3332d30589ff535f38de5d028a51f0165';"
+            "signature, v, r, s, message_hash = ecdsa.SigningKey.eth_sign(msg, private_key);",
+            "ecdsa.SigningKey.eth_verify(msg, r, s, public_key)"
+        ),
     ]
 
 
