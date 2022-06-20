@@ -21,14 +21,18 @@ def make_snippets(module, snippet, pre_snippet=''):
     if module:
         import_module = "import %s" % module
 
-    return ("""%s
+    return (
+#remote snippet
+"""%s
 @taxa.route("/test")
 def test():
     %s # pre-snippet
     result = %s
     response.add(str(result))
 """ % (import_module, pre_snippet, snippet),
-    "%s; %s; local_value = %s" % (import_module, pre_snippet, snippet)
+
+    #local snippet
+    "%s\n%s\nlocal_value = %s" % (import_module, pre_snippet, snippet)
 )
 
 class BaseSnippetTest(object):
@@ -36,7 +40,7 @@ class BaseSnippetTest(object):
         return str(value)
 
     def test_snippets(self):
-        request = TaxaRequest("snippet_test.json", verbose=False)
+        request = TaxaRequest("snippet_test.json", verbose=VERBOSE)
         if FORCEIP: request.ip = FORCEIP
 
         g = {'local_value': None}
@@ -49,21 +53,34 @@ class BaseSnippetTest(object):
 
             remote, local = make_snippets(self.module, snippet, pre_snippet)
 
-            response = request.send(function="test", code=remote)
-            print(snippet, ":", "remote->", response['decrypted_data'], end="")
+            if DO_ONLY != 'local':
+                response = request.send(function="test", code=remote)
+                remote_val = self.compare(response['decrypted_data'])
+                print(snippet, ":", "remote->", remote_val, end="  ")
+            else:
+                print(snippet, ":", "remote->","(skipped)", end="  ")
 
-            exec(local, g)
-            print("local->", self.compare(g['local_value']))
+            if DO_ONLY != 'remote':
+                exec(local, g)
+                local_val = self.compare(g['local_value'])
+                print("local->", local_val)
+            else:
+                print("local-> (skipped)")
 
-            self.assertEqual(
-                self.compare(response['decrypted_data']),
-                self.compare(g['local_value']),
-                snippet
-            )
+            if not DO_ONLY:
+                self.assertEqual(remote_val, local_val, snippet)
 
-class UnicodeTest(BaseSnippetTest, BaseServerTest):
+class JsonTest(BaseSnippetTest, BaseServerTest):
+    module = 'json'
+    snippets = [
+        #"""json.loads('{"a": 1, "b": [1, 2, 3], "c": 5.4}')""",
+        """json.dumps({"a": 1, "b": [1, 2, 3], "c": 5.4})""",
+    ]
+
+class UnicodetoStrTest(BaseSnippetTest, BaseServerTest):
     module = None
     snippets = [
+        'u"A" == "A"',
         'str(u"u")'
     ]
 
@@ -73,10 +90,12 @@ class BytestoStrTest(BaseSnippetTest, BaseServerTest):
         'str(b"b")'
     ]
 
-class AddUnicode(BaseSnippetTest, BaseServerTest):
+class AddToItselfTest(BaseSnippetTest, BaseServerTest):
     module = None
     snippets = [
-        'u"u" + u"u"'
+        '"s" + "s"',
+        'b"b" + b"b"',
+        'u"u" + u"u"',
     ]
 
 class MathTest(BaseSnippetTest, BaseServerTest):
@@ -128,31 +147,39 @@ class ECDSATest(BaseSnippetTest, BaseServerTest):
     module = "ecdsa"
     snippets = [
         (
-            'rng1 = ecdsa.PRNG(b"seed")',
-            "ecdsa.SigningKey.generate(entropy=rng1).to_pem()"
-        ),
-        (
-            'sk = ecdsa.SigningKey.generate();'
-            'vk = sk.verifying_key;'
+            'sk = ecdsa.SigningKey.generate(); '
+            'vk = sk.verifying_key; '
             'signature = sk.sign(b"message")',
-            'vk.verify(signature, b"message") # NIST192p;'
+            'vk.verify(signature, b"message") # SECP256K1'
         ),
         (
-            'sk = ecdsa.SigningKey.generate(curve=ecdsa.NIST384p);'
-            'vk = sk.verifying_key;'
+            'sk = ecdsa.SigningKey.generate(curve=ecdsa.NIST384p); '
+            'vk = sk.verifying_key; '
             'signature = sk.sign(b"message")',
             'vk.verify(signature, b"message") # NIST384p'
         ),
         (
-            'sk = ecdsa.SigningKey.generate(curve=ecdsa.NIST384p);'
+            'sk = ecdsa.SigningKey.generate(curve=ecdsa.NIST384p); '
             'sk2 = ecdsa.SigningKey.from_string(sk.to_string(), curve=ecdsa.NIST384p)',
             'sk == sk2'
         ),
         (
             "msg = b'Hello World!';"
             "private_key = b'0x2574c4b3ba6ecc8714740cedf1554ec3332d30589ff535f38de5d028a51f0165';"
-            "signature, v, r, s, message_hash = ecdsa.SigningKey.eth_sign(msg, private_key);",
+            "msg_hash = ecdsa.SigningKey.eth_hash(msg)",
+            "msg_hash == '0xec3608877ecbf8084c29896b7eab2a368b2b3c8d003288584d145613dfa4706c'"
+        ),
+        (
+            "msg = b'Hello World!';"
+            "public_key = b'0xbb5e2f23623af907307e918ec16599a4bdb7de0af6a114a073dcb82a4b17920d506e75406d2b4f4c53356d344fb9d64b4d5bb33f2ce341201e4bafea6666b651';"
+            "private_key = b'0x2574c4b3ba6ecc8714740cedf1554ec3332d30589ff535f38de5d028a51f0165';"
+            "signature, v, r, s, message_hash = ecdsa.SigningKey.eth_sign(msg, private_key)",
             "ecdsa.SigningKey.eth_verify(msg, r, s, public_key)"
+        ),
+        (
+            'from ecdsa import PRNG; '
+            'rng1 = PRNG(b"seed")',
+            "ecdsa.SigningKey.generate(entropy=rng1).to_pem()"
         ),
     ]
 
@@ -160,18 +187,27 @@ class ECDSATest(BaseSnippetTest, BaseServerTest):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--forceip', default=None)
-    parser.add_argument('--nopackagedcore', action='store_true', default=False)
+    parser.add_argument('--verbose', action='store_true', default=False)
     parser.add_argument('--keepkeys', action='store_true', default=False)
     parser.add_argument('--nop2p', action='store_true', default=False)
+    parser.add_argument('--local-only', action='store_true', default=False)
+    parser.add_argument('--remote-only', action='store_true', default=False)
     parser.add_argument('unittest_args', nargs='*')
 
     args = parser.parse_args()
     if args.forceip:
         FORCEIP = args.forceip
 
-    USE_PACKAGED = not args.nopackagedcore
     KEEP_KEYS = args.keepkeys
     NO_P2P = args.nop2p
+    VERBOSE = args.verbose
+
+    if args.local_only:
+        DO_ONLY = 'local'
+    elif args.remote_only:
+        DO_ONLY = 'remote'
+    else:
+        DO_ONLY = None
 
     sys.argv[1:] = args.unittest_args
     unittest.main()
