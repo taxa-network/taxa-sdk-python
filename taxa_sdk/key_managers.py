@@ -383,6 +383,8 @@ class IdentityKeyManager(BaseKeyManager):
         return "%s.%s.aes" % (self.identity_path, self.ip)
 
     def key_exists(self, which):
+        if which not in self.keys:
+            return False
         if which == 'master_key':
             return bool(self.keys['master_key'].get(self.ip))
         return bool(self.keys[which])
