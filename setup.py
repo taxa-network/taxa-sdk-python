@@ -20,5 +20,5 @@ setup(
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
     ],
-    install_requires=['pyaes', 'requests', 'base58==1.0.3']
+    install_requires=['pyaes', 'requests', 'base58==1.0.3', "ecdsa"]
 )

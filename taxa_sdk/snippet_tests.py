@@ -12,6 +12,7 @@ try:
 except ImportError:
     nodes = None
 
+
 bin = b'R\x9d\x94r\x12\xa4\x1a\xec\xb4\x11\x90\xdcY\x9a\x96\xccReWimBsDWONrzoeO'
 b64 = b"Up2UchKkGuy0EZDcWZqWzFJlV2ltQnNEV09OcnpvZU8="
 hex = b'529d947212a41aecb41190dc599a96cc526557696d427344574f4e727a6f654f'
@@ -195,6 +196,7 @@ if __name__ == '__main__':
     parser.add_argument('unittest_args', nargs='*')
 
     args = parser.parse_args()
+    FORCEIP = False
     if args.forceip:
         FORCEIP = args.forceip
 
