@@ -91,4 +91,8 @@ def _cert_from_priv(b64_priv):
     swapped_priv = binascii.a2b_hex(swap8(binascii.a2b_base64(b64_priv)))
     sk = SigningKey.from_string(swapped_priv, curve=NIST256p)
     pub = sk.verifying_key.to_string()
-    return hex_to_b64(swap8(pub[:32]) + swap8(pub[32:])))
+    return hex_to_b64(swap8(pub[:32]) + swap8(pub[32:]))
+    
+    
+if __name__ == '__main__':
+    print(make_keypair())

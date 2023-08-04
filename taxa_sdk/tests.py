@@ -299,7 +299,7 @@ class TestBypassWebUI(BaseServerTest):
             filename = getattr(self, f)
             delete_keys(filename)
 
-class SnippetTest(BaseServerTest):
+class OldSnippetTest(BaseServerTest):
     def test_snippet(self):
         extra = {}
 
@@ -314,6 +314,20 @@ class SnippetTest(BaseServerTest):
             code_path=self.code_path("snippet_tests.py"),
         )
         self.assertEqual(response['decrypted_data'], '')
+
+class SimpleTest(BaseServerTest):
+    def test_simple(self):
+        request = TaxaRequest("simple.json", verbose=True)
+        request.aes_debug = True
+        if FORCEIP: request.ip = FORCEIP
+        response = request.send(
+            function="/test",
+            json_data={"test": "test"},
+            code="""
+@taxa.route("/test")
+def test():
+    response.add("test")""",
+        )
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
