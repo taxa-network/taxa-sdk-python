@@ -18,7 +18,6 @@ from .key_managers import FileKeyManager, IdentityKeyManager
 from .exceptions import *
 from .platform_detect import get_os_dir
 
-
 # Request generation and sending.
 class TaxaRequest(object):
     # Header -> Type in request, see doc
@@ -66,6 +65,9 @@ class TaxaRequest(object):
     # cert used to find the appropriate node to send request to. If not passed in
     # tot he constructor, it uses the normal client_cert.
     peer_cert = None
+    
+    # for debugging the AES decryption/encryption bugs (like the 'invalid padding' error)
+    aes_debug = False
 
     # Initialze the request object with key paths
     def __init__(self, identity=None, core_path=None, client_cert_path=None,
@@ -103,9 +105,19 @@ class TaxaRequest(object):
 
     def p(self, *args):
         if self.verbose: print("SDK:", *args)
+        
+    def aes_debug(self, value, title, to_hex=True):
+        if not self.DEBUG_AES:
+            return
+        if to_hex:
+            value = binascii.b2a_hex(value)
+        print("** AES DEBUG: [%s] %s (%s)" % (title, value, len(value)))
 
     # Encrypt the request data section with master AES key
     def __encryptData(self, data):
+        self.aes_debug(self.key_manager.master_key_key, "key")
+        self.aes_debug(self.key_manager.master_key_iv, "iv", False)
+        self.aes_debug(data, "before encryption")
         ciphertext = b''
 
         # We can encrypt one line at a time, regardles of length
@@ -118,7 +130,7 @@ class TaxaRequest(object):
 
         # Make a final call to flush any remaining bytes and add padding
         ciphertext += encrypter.feed()
-
+        self.aes_debug(ciphertext, "after encryption")
         return ciphertext
 
     def force_attestation(self):
@@ -126,6 +138,10 @@ class TaxaRequest(object):
         self.key_manager.master_key
 
     def decrypt_data(self, encrypted_data):
+        self.aes_debug(self.key_manager.master_key_key, "key")
+        self.aes_debug(self.key_manager.master_key_iv, "iv", False)
+        self.aes_debug(encrypted_data, "before decryption")
+        
         data = binascii.a2b_base64(encrypted_data)
         decrypted_data = b''
 
@@ -139,6 +155,8 @@ class TaxaRequest(object):
 
         # Make a final call to flush any remaining bytes and add padding
         decrypted_data += decrypter.feed()
+        
+        self.aes_debug(decrypted_data, "after decryption", False)
 
         self.last_encrypted_response = encrypted_data # for debugging
         self.last_decrypted_response = decrypted_data # for debugging
