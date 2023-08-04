@@ -117,7 +117,7 @@ class TaxaRequest(object):
     def __encryptData(self, data):
         self.aes_debug(self.key_manager.master_key_key, "key")
         self.aes_debug(self.key_manager.master_key_iv, "iv", False)
-        self.aes_debug(data, "before encryption")
+        self.aes_debug(data, "before encryption", False)
         ciphertext = b''
 
         # We can encrypt one line at a time, regardles of length
@@ -140,10 +140,11 @@ class TaxaRequest(object):
     def decrypt_data(self, encrypted_data):
         self.aes_debug(self.key_manager.master_key_key, "key")
         self.aes_debug(self.key_manager.master_key_iv, "iv", False)
-        self.aes_debug(encrypted_data, "before decryption")
         
         data = binascii.a2b_base64(encrypted_data)
         decrypted_data = b''
+
+        self.aes_debug(data, "before decryption")
 
         # We can encrypt one line at a time, regardless of length
         decrypter = pyaes.Decrypter(
@@ -251,7 +252,7 @@ class TaxaRequest(object):
             "taxa_version": "0",
             "app_id": self.appId,
             "cert": base64.b64encode(self.key_manager.client_cert).decode(),
-            "function": "/" + self.function,
+            "function": self.function if self.function.startswith("/") else "/" + self.function,
             "header": {"src": "user", "type": self.content_type},
             "data": json_data,
             "content-transfer-encoding":self.__dataEncoding

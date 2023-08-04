@@ -318,15 +318,15 @@ class OldSnippetTest(BaseServerTest):
 class SimpleTest(BaseServerTest):
     def test_simple(self):
         request = TaxaRequest("simple.json", verbose=True)
-        request.aes_debug = True
+        request.DEBUG_AES = True
         if FORCEIP: request.ip = FORCEIP
         response = request.send(
-            function="/test",
+            function="test",
             json_data={"test": "test"},
             code="""
 @taxa.route("/test")
 def test():
-    response.add("test")""",
+    response.add("simple_test")""",
         )
 
 if __name__ == '__main__':
