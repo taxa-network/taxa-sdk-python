@@ -109,9 +109,8 @@ class TaxaRequest(object):
     def aes_debug(self, value, title, to_hex=True):
         if not self.DEBUG_AES:
             return
-        if to_hex:
-            value = binascii.b2a_hex(value)
-        print("** AES DEBUG: [%s] %s (%s)" % (title, value, len(value)))
+        disp_value = binascii.b2a_hex(value) if to_hex else value            
+        print("** AES DEBUG: [%s] %s (%s)" % (title, disp_value, len(value)))
 
     # Encrypt the request data section with master AES key
     def __encryptData(self, data):
