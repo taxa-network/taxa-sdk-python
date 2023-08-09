@@ -315,19 +315,21 @@ class OldSnippetTest(BaseServerTest):
         )
         self.assertEqual(response['decrypted_data'], '')
 
-class SimpleTest(BaseServerTest):
+class AesDebugTest(BaseServerTest):
     def test_simple(self):
+        msg = {"AES_debug": "test"}
         request = TaxaRequest("simple.json", verbose=True)
         request.DEBUG_AES = True
         if FORCEIP: request.ip = FORCEIP
         response = request.send(
             function="test",
-            json_data={"test": "test"},
+            json_data=msg,
             code="""
 @taxa.route("/test")
 def test():
-    response.add("simple_test")""",
+    response.add(request.data)""",
         )
+        self.assertEqual(msg, json.loads(response['decrypted_data']))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
