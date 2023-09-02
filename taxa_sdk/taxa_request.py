@@ -67,7 +67,7 @@ class TaxaRequest(object):
     peer_cert = None
     
     # for debugging the AES decryption/encryption bugs (like the 'invalid padding' error)
-    AES_DEBUG = False
+    DEBUG_AES = False
 
     # Initialze the request object with key paths
     def __init__(self, identity=None, core_path=None, client_cert_path=None,
