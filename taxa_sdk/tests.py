@@ -331,6 +331,22 @@ def test():
         )
         self.assertEqual(msg, json.loads(response['decrypted_data']))
 
+class UnicodeTest(BaseServerTest):
+    def test_unicode(self):
+        msg = {"AES_debug": "test"}
+        request = TaxaRequest("unicode.json", verbose=True)
+        if FORCEIP: request.ip = FORCEIP
+        uni = '♠♥♦♣'
+        response = request.send(
+            function="test",
+            json_data=msg,
+            code="""
+@taxa.route("/test")
+def test():
+    response.add('%s')""" % uni,
+        )
+        self.assertEqual(uni, response['decrypted_data'])
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--forceip', default=None)
