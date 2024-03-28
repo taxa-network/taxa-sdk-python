@@ -110,7 +110,11 @@ class TestMillionaire(BaseServerTest):
             dd, request_2.key_manager.client_cert,
             "Millionaire 2 taxa.globals.getUserCert()"
         )
-
+        
+        ######################### pause for re-attestation
+        import pdb; pdb.set_trace()
+        request_1 = self._make_request(1, peer_cert=request_1.key_manager.client_cert)
+        request_2 = self._make_request(2, peer_cert=request_1.key_manager.client_cert)
         ######################### millionaire 1 reveal
 
         cert_b64 = binascii.b2a_base64(request_2.key_manager.client_cert).decode()
@@ -145,8 +149,10 @@ class TestMillionaireByKey(TestMillionaire):
 
 class TestMillionaireByIdentity(TestMillionaire):
     def _make_request(self, num, peer_cert):
-        return TaxaRequest("profile_millionaire_%s.json" % num, verbose=True, peer_cert_bytes=peer_cert)
-
+        r = TaxaRequest("profile_millionaire_%s.json" % num, verbose=True, peer_cert_bytes=peer_cert)
+        r.ip = FORCEIP
+        return r
+    
 class TestAttestationWebUI(BaseServerTest):
     def test_attestation(self):
         manager = IdentityKeyManager("attestation_test.json", verbose=True)
