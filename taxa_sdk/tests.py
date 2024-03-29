@@ -151,6 +151,7 @@ class TestMillionaireByIdentity(TestMillionaire):
     def _make_request(self, num, peer_cert):
         r = TaxaRequest("profile_millionaire_%s.json" % num, verbose=True, peer_cert_bytes=peer_cert)
         r.ip = FORCEIP
+        r.set_code(code_path=self.code_path("millionaire.py"))
         return r
     
 class TestAttestationWebUI(BaseServerTest):
