@@ -5,6 +5,8 @@ try:
 except ImportError: # py2
     import ConfigParser as configparser
 
+KEYGEN = 'pure_python'
+
 import os
 import subprocess
 import requests
@@ -17,7 +19,7 @@ import warnings
 
 from .exceptions import *
 from .platform_detect import get_os_specific_lib_dir, get_os_dir
-
+from .keygen import make_keypair
 
 class BaseKeyManager(object):
 
@@ -217,7 +219,7 @@ class BaseKeyManager(object):
             raise TaxaClientException("Taxa client call failed, check log.")
         return output[0]
 
-    def do_keygen(self, which):
+    def do_keygen_taxa_client(self, which):
         self.pre_keygen_hook()
         self.p("%s does not exist, generating keypairs..." % which)
         self._copy_to_home()
@@ -226,6 +228,19 @@ class BaseKeyManager(object):
         finally:
             self._delete_home_copies()
         self.post_keygen_hook()
+        
+    def do_keygen_pure_python(self, which):
+        self.pre_keygen_hook()
+        self.p("%s does not exist, generating keypairs in pure python..." % which)
+        j = make_keypair()
+        self.keys['client_cert'] = j['client_cert']
+        self.keys['client_key'] = j['client_key']
+        
+    def do_keygen(self, which):
+        if KEYGEN == 'taxa_client':
+            self.do_keygen_taxa_client(which)
+        if KEYGEN == 'pure_python':
+            self.do_keygen_pure_python(which)
 
     def do_attestation(self, ip=None, retry_count=0):
         if ip: self.ip = ip

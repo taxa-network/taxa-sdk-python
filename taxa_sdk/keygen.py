@@ -81,7 +81,7 @@ def make_taxa_identity(priv, cert):
     
 def make_keypair(lib="ecdsa"):
     priv, cert = KeyPairGenerator(lib).make_keypair()
-    return json.dumps(make_taxa_identity(priv, cert))
+    return make_taxa_identity(priv, cert)
     
     
 def _cert_from_priv(b64_priv):
