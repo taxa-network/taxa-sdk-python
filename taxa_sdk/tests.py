@@ -331,6 +331,34 @@ def test():
         )
         self.assertEqual(msg, json.loads(response['decrypted_data']))
 
+class MultiAesDebugTest(BaseServerTest):
+    def test_multi(self):
+        code = """
+@taxa.route("/test")
+def test():
+    response.add(request.data)"""
+    
+        msg = {"AES_debug": "test"}
+        request = TaxaRequest("multi1.json", verbose=True)
+        request.DEBUG_AES = True
+        if FORCEIP: request.ip = FORCEIP
+        response = request.send(
+            function="test",
+            json_data=msg,
+            code=code,
+        )
+        self.assertEqual(msg, json.loads(response['decrypted_data']))
+        
+        request = TaxaRequest("multi2.json", verbose=True)
+        request.DEBUG_AES = True
+        if FORCEIP: request.ip = FORCEIP
+        response = request.send(
+            function="test",
+            json_data=msg,
+            code=code,
+        )
+        self.assertEqual(msg, json.loads(response['decrypted_data']))
+
 class UnicodeTest(BaseServerTest):
     def test_unicode(self):
         msg = {"AES_debug": "test"}
