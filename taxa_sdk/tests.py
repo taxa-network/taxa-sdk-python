@@ -26,9 +26,11 @@ def delete_keys(filename):
         os.remove(filename)
 
 class BaseServerTest(unittest.TestCase):
-    server_path = "/path-to-taxa-core/Taxa-Core/server/Application/"
-    client_path = "/path-to-taxa-core/Taxa-Core/client/ServiceProvider/"
-
+    server_path = "/taxa/Taxa-Core/server/Application/"
+    client_path = "/taxa/Taxa-Core/client/ServiceProvider/"
+    ini_path = "/home/chris/taxa-sdk-python/taxa_sdk/bin/taxaclient.ini"
+    
+    
     def code_path(self, filename):
         this_folder = os.path.dirname(__file__)
         return os.path.join(this_folder, 'code', filename)
@@ -186,7 +188,7 @@ class TestBypassWebUI(BaseServerTest):
     key_path = None
 
     def execute_client(self, cmd):
-        full_cmd = "cd " + self.client_path + "; ./taxa_client " + cmd
+        full_cmd = "cd " + self.client_path + "; ./taxa_client %s %s" % (self.ini_path, cmd)
         print("COMMAND: %s" % full_cmd)
         return subprocess.Popen(
             full_cmd, shell=True, stdout=subprocess.PIPE, #stderr=subprocess.PIPE

@@ -456,6 +456,7 @@ def check_attestation_status(output):
     From the raw output of the attestation command, parse the output for the status
     code, then raise exceptions of the status code shows the attestation failed.
     """
+    print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX printing attestation output:", output.decode())
     try:
         status = int(output.decode().split('\n')[14].split(' ')[1])
     except:
