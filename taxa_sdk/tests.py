@@ -188,7 +188,7 @@ class TestBypassWebUI(BaseServerTest):
     key_path = None
 
     def execute_client(self, cmd):
-        full_cmd = "cd " + self.client_path + "; ./taxa_client %s %s" % (self.ini_path, cmd)
+        full_cmd = "cd " + self.client_path + "; ./taxa_client %s" % cmd
         print("COMMAND: %s" % full_cmd)
         return subprocess.Popen(
             full_cmd, shell=True, stdout=subprocess.PIPE, #stderr=subprocess.PIPE
@@ -212,7 +212,7 @@ class TestBypassWebUI(BaseServerTest):
 
         # generate keys
         keygen = self.execute_client(
-            "keygen {cert} {key}".format(cert=self.cert_path, key=self.key_path),
+            "keygen {ini} {cert} {key}".format(cert=self.cert_path, ini=self.ini_path, key=self.key_path),
         )
         keygen.wait()
         keygen.stdout.close()
@@ -225,7 +225,7 @@ class TestBypassWebUI(BaseServerTest):
         # perform attestation
         subprocess.Popen(['fuser', '-k', '22222/tcp']) # kill processes using 22222
         server = self.execute_server(
-            "attestation {cert}".format(cert=self.cert_path)
+            "attestation {ini} {cert}".format(ini=self.ini_path, cert=self.cert_path)
         )
         time.sleep(2)
         connect = self.execute_client("connect {key} {master_key}".format(
