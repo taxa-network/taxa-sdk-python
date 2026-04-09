@@ -18,6 +18,10 @@ from .key_managers import FileKeyManager, IdentityKeyManager
 from .exceptions import *
 from .platform_detect import get_os_dir
 
+
+# Valid execution modes
+VALID_MODES = ('sgx', 'tdx')
+
 # Request generation and sending.
 class TaxaRequest(object):
     # Header -> Type in request, see doc
@@ -73,7 +77,19 @@ class TaxaRequest(object):
     def __init__(self, identity=None, core_path=None, client_cert_path=None,
                  client_key_path=None, master_key_path=None, verbose=False,
                  p2p_node=None, peer_cert_path=None, peer_cert_bytes=None,
-                 peer_cert_b64=None, do_export=True):
+                 peer_cert_b64=None, do_export=True, mode='sgx'):
+        # Validate and set execution mode (sgx or tdx)
+        if mode not in VALID_MODES:
+            raise ValueError(
+                "Invalid mode '%s'. Must be one of: %s" % (mode, ', '.join(VALID_MODES))
+            )
+        self.mode = mode
+        
+        if self.mode == 'tdx':
+            raise NotImplementedError(
+                "TDX mode is not yet implemented. Please use mode='sgx' (default)."
+            )
+        
         self.verbose = verbose
         if client_cert_path or client_key_path or master_key_path:
             self.key_manager = FileKeyManager(
