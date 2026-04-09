@@ -348,65 +348,66 @@ class TaxaRequest(object):
 
         return self.decrypt_response(response)
 
-    def _send_tdx(self, function=None, code_path=None, code=None, data=None, json_data=None, **kwargs):
+    def _send_tdx(self, function=None, code_path=None, code=None, data=None, json_data=None, libs=None, cid=None, **kwargs):
         """
         Send request to TDX API backend.
         
-        Currently sends unencrypted requests to /attestation endpoint.
-        Attestation and encryption will be added in a future update.
+        Sends contract execution requests to POST /contract/ endpoint.
         
         Args:
-            function: The function/endpoint to call
-            code_path: Path to code file (optional)
-            code: Raw code string (optional)
-            data: Data to send (dict)
+            function: The function name to call in the contract
+            code_path: Path to Python code file (optional)
+            code: Raw Python code string (optional)
+            data: Input data to pass to the function (dict)
             json_data: Alias for data (backwards compatibility)
+            libs: List of pip packages to install for the contract (optional)
+            cid: Content ID of previously uploaded code (optional, alternative to code/code_path)
         
         Returns:
-            dict: Response from TDX API
+            dict: Response from TDX API containing:
+                - cid: Content ID of the code
+                - result: The return value from the contract function
+                - log: Any print() output from the contract
+                - time: Execution time in seconds
         """
         if function:
             self.function = function
         
-        if code_path or code:
-            self.set_code(code_path=code_path, raw_code=code)
-        
         # Use data or json_data
         request_data = data or json_data or {}
         
-        # Build TDX request payload
-        # For now, send a simple request to the attestation endpoint
-        # This will be expanded when full TDX attestation is implemented
+        # Build TDX contract request payload
         payload = {
-            "function": self.function if self.function else "/",
-            "data": request_data,
+            "function_name": self.function.lstrip('/') if self.function else "",
+            "input_json": json.dumps(request_data),
+            "libs": libs or []
         }
         
-        if self.appId:
-            payload["app_id"] = self.appId
-        if self.code:
+        # Add code or cid
+        if code_path:
+            with open(code_path, 'r') as f:
+                payload["code"] = f.read()
+        elif code:
+            payload["code"] = code if isinstance(code, str) else code.decode()
+        elif cid:
+            payload["cid"] = cid
+        elif self.code:
+            # Use previously set code
             payload["code"] = self.code.decode() if isinstance(self.code, bytes) else self.code
         
-        # Send to TDX API
-        url = self.base_url + "/attestation"
+        # Send to TDX API /contract/ endpoint
+        url = self.base_url + "/contract/"
         headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
         
         self.p("TDX mode - Sending to:", url)
         self.p("TDX mode - Payload:", payload)
-        
-        # For initial implementation, send as a legacy attestation request
-        # The nonce is used for attestation verification
-        nonce = base64.b64encode(os.urandom(32)).decode()
-        attestation_payload = {
-            "user_claims_nonce": nonce
-        }
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             self.raw_response = requests.post(
                 url, 
                 verify=self.verify, 
-                json=attestation_payload, 
+                json=payload, 
                 headers=headers
             )
         
@@ -422,12 +423,19 @@ class TaxaRequest(object):
         
         response = self.raw_response.json()
         
-        # Return response with attestation token
+        # Check for errors in response
+        if 'error' in response:
+            raise TserviceError(response['error'])
+        if 'syntax error' in response:
+            raise InvalidRequest("Syntax error: %s" % response['syntax error'])
+        
+        # Return TDX response format
         return {
             'response-code': '2000',
-            'attest_token': response.get('attest_token'),
-            'user_claims_nonce': response.get('user_claims_nonce'),
-            'data': request_data,  # Echo back the request data for now
+            'cid': response.get('cid'),
+            'result': response.get('result'),
+            'log': response.get('log'),
+            'time': response.get('time'),
             'mode': 'tdx'
         }
 
