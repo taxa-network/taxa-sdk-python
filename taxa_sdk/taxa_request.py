@@ -22,6 +22,11 @@ from .platform_detect import get_os_dir
 # Valid execution modes
 VALID_MODES = ('sgx', 'tdx')
 
+# Default TDX API settings
+DEFAULT_TDX_PORT = 8000
+DEFAULT_TDX_PROTOCOL = "http"
+
+
 # Request generation and sending.
 class TaxaRequest(object):
     # Header -> Type in request, see doc
@@ -77,7 +82,7 @@ class TaxaRequest(object):
     def __init__(self, identity=None, core_path=None, client_cert_path=None,
                  client_key_path=None, master_key_path=None, verbose=False,
                  p2p_node=None, peer_cert_path=None, peer_cert_bytes=None,
-                 peer_cert_b64=None, do_export=True, mode='sgx'):
+                 peer_cert_b64=None, do_export=True, mode='sgx', tdx_api_url=None):
         # Validate and set execution mode (sgx or tdx)
         if mode not in VALID_MODES:
             raise ValueError(
@@ -85,10 +90,18 @@ class TaxaRequest(object):
             )
         self.mode = mode
         
+        # TDX mode configuration
+        self.tdx_api_url = tdx_api_url  # e.g., "http://localhost:8000"
+        
         if self.mode == 'tdx':
-            raise NotImplementedError(
-                "TDX mode is not yet implemented. Please use mode='sgx' (default)."
-            )
+            if not self.tdx_api_url:
+                raise ValueError(
+                    "TDX mode requires tdx_api_url parameter (e.g., 'http://localhost:8000')"
+                )
+            # TDX mode doesn't use key managers or attestation yet
+            self.verbose = verbose
+            self.key_manager = None
+            return
         
         self.verbose = verbose
         if client_cert_path or client_key_path or master_key_path:
@@ -279,12 +292,22 @@ class TaxaRequest(object):
 
     @property
     def base_url(self):
+        if self.mode == 'tdx':
+            return self.tdx_api_url.rstrip('/')
         return "%s://%s:%d" % (self.protocol, self.get_ip(), self.port)
 
     def send(self, **convenient):
         """
         Send the encoded request to node, expect a dictionary of the response
-        from the server.
+        from the server. Routes to SGX or TDX backend based on mode.
+        """
+        if self.mode == 'tdx':
+            return self._send_tdx(**convenient)
+        return self._send_sgx(**convenient)
+
+    def _send_sgx(self, **convenient):
+        """
+        Send request to SGX WebUI backend.
         """
         d = self.request_body(**convenient)
         url = self.base_url + "/api/contract/request"
@@ -324,6 +347,89 @@ class TaxaRequest(object):
             raise InvalidRequest(response['data'])
 
         return self.decrypt_response(response)
+
+    def _send_tdx(self, function=None, code_path=None, code=None, data=None, json_data=None, **kwargs):
+        """
+        Send request to TDX API backend.
+        
+        Currently sends unencrypted requests to /attestation endpoint.
+        Attestation and encryption will be added in a future update.
+        
+        Args:
+            function: The function/endpoint to call
+            code_path: Path to code file (optional)
+            code: Raw code string (optional)
+            data: Data to send (dict)
+            json_data: Alias for data (backwards compatibility)
+        
+        Returns:
+            dict: Response from TDX API
+        """
+        if function:
+            self.function = function
+        
+        if code_path or code:
+            self.set_code(code_path=code_path, raw_code=code)
+        
+        # Use data or json_data
+        request_data = data or json_data or {}
+        
+        # Build TDX request payload
+        # For now, send a simple request to the attestation endpoint
+        # This will be expanded when full TDX attestation is implemented
+        payload = {
+            "function": self.function if self.function else "/",
+            "data": request_data,
+        }
+        
+        if self.appId:
+            payload["app_id"] = self.appId
+        if self.code:
+            payload["code"] = self.code.decode() if isinstance(self.code, bytes) else self.code
+        
+        # Send to TDX API
+        url = self.base_url + "/attestation"
+        headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
+        
+        self.p("TDX mode - Sending to:", url)
+        self.p("TDX mode - Payload:", payload)
+        
+        # For initial implementation, send as a legacy attestation request
+        # The nonce is used for attestation verification
+        nonce = base64.b64encode(os.urandom(32)).decode()
+        attestation_payload = {
+            "user_claims_nonce": nonce
+        }
+        
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.raw_response = requests.post(
+                url, 
+                verify=self.verify, 
+                json=attestation_payload, 
+                headers=headers
+            )
+        
+        self.p("TDX mode - Raw response:", self.raw_response.text)
+        
+        if self.raw_response.status_code != 200:
+            raise TaxaException(
+                'TDX API returned %s: %s' % (
+                    self.raw_response.status_code, 
+                    self.raw_response.text
+                )
+            )
+        
+        response = self.raw_response.json()
+        
+        # Return response with attestation token
+        return {
+            'response-code': '2000',
+            'attest_token': response.get('attest_token'),
+            'user_claims_nonce': response.get('user_claims_nonce'),
+            'data': request_data,  # Echo back the request data for now
+            'mode': 'tdx'
+        }
 
     def decrypt_response(self, response):
         response['encrypted_data'] = response['data']
