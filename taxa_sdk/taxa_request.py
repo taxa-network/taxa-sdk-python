@@ -22,6 +22,10 @@ from .platform_detect import get_os_dir
 # Valid execution modes
 VALID_MODES = ('sgx', 'tdx')
 
+# Default TDX API settings
+DEFAULT_TDX_URL = "http://tdx.taxa.network:8000"
+
+
 # Request generation and sending.
 class TaxaRequest(object):
     # Header -> Type in request, see doc
@@ -86,9 +90,10 @@ class TaxaRequest(object):
         self.mode = mode
         
         if self.mode == 'tdx':
-            raise NotImplementedError(
-                "TDX mode is not yet implemented. Please use mode='sgx' (default)."
-            )
+            # TDX mode doesn't use key managers or attestation yet
+            self.verbose = verbose
+            self.key_manager = None
+            return
         
         self.verbose = verbose
         if client_cert_path or client_key_path or master_key_path:
@@ -279,12 +284,29 @@ class TaxaRequest(object):
 
     @property
     def base_url(self):
+        if self.mode == 'tdx':
+            return self._get_tdx_url()
         return "%s://%s:%d" % (self.protocol, self.get_ip(), self.port)
+
+    def _get_tdx_url(self):
+        """
+        Get the TDX API URL. Currently returns a hardcoded default.
+        In the future, this could use a discovery mechanism similar to SGX's p2p/node_distributor.
+        """
+        return DEFAULT_TDX_URL
 
     def send(self, **convenient):
         """
         Send the encoded request to node, expect a dictionary of the response
-        from the server.
+        from the server. Routes to SGX or TDX backend based on mode.
+        """
+        if self.mode == 'tdx':
+            return self._send_tdx(**convenient)
+        return self._send_sgx(**convenient)
+
+    def _send_sgx(self, **convenient):
+        """
+        Send request to SGX WebUI backend.
         """
         d = self.request_body(**convenient)
         url = self.base_url + "/api/contract/request"
@@ -324,6 +346,97 @@ class TaxaRequest(object):
             raise InvalidRequest(response['data'])
 
         return self.decrypt_response(response)
+
+    def _send_tdx(self, function=None, code_path=None, code=None, data=None, json_data=None, libs=None, cid=None, **kwargs):
+        """
+        Send request to TDX API backend.
+        
+        Sends contract execution requests to POST /contract/ endpoint.
+        
+        Args:
+            function: The function name to call in the contract
+            code_path: Path to Python code file (optional)
+            code: Raw Python code string (optional)
+            data: Input data to pass to the function (dict)
+            json_data: Alias for data (backwards compatibility)
+            libs: List of pip packages to install for the contract (optional)
+            cid: Content ID of previously uploaded code (optional, alternative to code/code_path)
+        
+        Returns:
+            dict: Response from TDX API containing:
+                - cid: Content ID of the code
+                - result: The return value from the contract function
+                - log: Any print() output from the contract
+                - time: Execution time in seconds
+        """
+        if function:
+            self.function = function
+        
+        # Use data or json_data
+        request_data = data or json_data or {}
+        
+        # Build TDX contract request payload
+        payload = {
+            "function_name": self.function.lstrip('/') if self.function else "",
+            "input_json": json.dumps(request_data),
+            "libs": libs or []
+        }
+        
+        # Add code or cid
+        if code_path:
+            with open(code_path, 'r') as f:
+                payload["code"] = f.read()
+        elif code:
+            payload["code"] = code if isinstance(code, str) else code.decode()
+        elif cid:
+            payload["cid"] = cid
+        elif self.code:
+            # Use previously set code
+            payload["code"] = self.code.decode() if isinstance(self.code, bytes) else self.code
+        
+        # Send to TDX API /contract/ endpoint
+        url = self.base_url + "/contract/"
+        headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
+        
+        self.p("TDX mode - Sending to:", url)
+        self.p("TDX mode - Payload:", payload)
+        
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.raw_response = requests.post(
+                url, 
+                verify=self.verify, 
+                json=payload, 
+                headers=headers
+            )
+        
+        self.p("TDX mode - Raw response:", self.raw_response.text)
+        
+        if self.raw_response.status_code != 200:
+            raise TaxaException(
+                'TDX API returned %s: %s' % (
+                    self.raw_response.status_code, 
+                    self.raw_response.text
+                )
+            )
+        
+        response = self.raw_response.json()
+        
+        # Check for errors in response
+        if 'error' in response:
+            raise TserviceError(response['error'])
+        if 'syntax error' in response:
+            raise InvalidRequest("Syntax error: %s" % response['syntax error'])
+        
+        # Return TDX response format
+        return {
+            'response-code': '2000',
+            'cid': response.get('cid'),
+            'result': response.get('result'),
+            'log': response.get('log'),
+            'time': response.get('time'),
+            'mode': 'tdx'
+        }
 
     def decrypt_response(self, response):
         response['encrypted_data'] = response['data']
