@@ -23,8 +23,7 @@ from .platform_detect import get_os_dir
 VALID_MODES = ('sgx', 'tdx')
 
 # Default TDX API settings
-DEFAULT_TDX_PORT = 8000
-DEFAULT_TDX_PROTOCOL = "http"
+DEFAULT_TDX_URL = "http://tdx.taxa.network:8000"
 
 
 # Request generation and sending.
@@ -82,7 +81,7 @@ class TaxaRequest(object):
     def __init__(self, identity=None, core_path=None, client_cert_path=None,
                  client_key_path=None, master_key_path=None, verbose=False,
                  p2p_node=None, peer_cert_path=None, peer_cert_bytes=None,
-                 peer_cert_b64=None, do_export=True, mode='sgx', tdx_api_url=None):
+                 peer_cert_b64=None, do_export=True, mode='sgx'):
         # Validate and set execution mode (sgx or tdx)
         if mode not in VALID_MODES:
             raise ValueError(
@@ -90,14 +89,7 @@ class TaxaRequest(object):
             )
         self.mode = mode
         
-        # TDX mode configuration
-        self.tdx_api_url = tdx_api_url  # e.g., "http://localhost:8000"
-        
         if self.mode == 'tdx':
-            if not self.tdx_api_url:
-                raise ValueError(
-                    "TDX mode requires tdx_api_url parameter (e.g., 'http://localhost:8000')"
-                )
             # TDX mode doesn't use key managers or attestation yet
             self.verbose = verbose
             self.key_manager = None
@@ -293,8 +285,15 @@ class TaxaRequest(object):
     @property
     def base_url(self):
         if self.mode == 'tdx':
-            return self.tdx_api_url.rstrip('/')
+            return self._get_tdx_url()
         return "%s://%s:%d" % (self.protocol, self.get_ip(), self.port)
+
+    def _get_tdx_url(self):
+        """
+        Get the TDX API URL. Currently returns a hardcoded default.
+        In the future, this could use a discovery mechanism similar to SGX's p2p/node_distributor.
+        """
+        return DEFAULT_TDX_URL
 
     def send(self, **convenient):
         """
