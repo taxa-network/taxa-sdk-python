@@ -77,11 +77,49 @@ class TaxaRequest(object):
     # for debugging the AES decryption/encryption bugs (like the 'invalid padding' error)
     DEBUG_AES = False
 
+    @staticmethod
+    def _detect_mode_from_identity(identity_path):
+        """
+        Detect mode from identity file version.
+        
+        - version 1 = SGX
+        - version 2 = TDX
+        - No file or no version = SGX (default)
+        
+        Args:
+            identity_path: Path to identity JSON file
+            
+        Returns:
+            str: 'sgx' or 'tdx'
+        """
+        if not identity_path:
+            return 'sgx'
+        
+        import os
+        identity_path = os.path.abspath(identity_path)
+        
+        if not os.path.exists(identity_path):
+            return 'sgx'
+        
+        try:
+            with open(identity_path, 'r') as f:
+                data = json.load(f)
+            version = data.get('version', 1)
+            if version >= 2:
+                return 'tdx'
+            return 'sgx'
+        except (json.JSONDecodeError, IOError):
+            return 'sgx'
+
     # Initialze the request object with key paths
     def __init__(self, identity=None, core_path=None, client_cert_path=None,
                  client_key_path=None, master_key_path=None, verbose=False,
                  p2p_node=None, peer_cert_path=None, peer_cert_bytes=None,
-                 peer_cert_b64=None, do_export=True, mode='sgx'):
+                 peer_cert_b64=None, do_export=True, mode=None):
+        # Auto-detect mode from identity file if not specified
+        if mode is None:
+            mode = self._detect_mode_from_identity(identity)
+        
         # Validate and set execution mode (sgx or tdx)
         if mode not in VALID_MODES:
             raise ValueError(
