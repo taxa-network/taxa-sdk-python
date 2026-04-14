@@ -90,9 +90,13 @@ class TaxaRequest(object):
         self.mode = mode
         
         if self.mode == 'tdx':
-            # TDX mode doesn't use key managers or attestation yet
+            # TDX mode uses ECDH session attestation
             self.verbose = verbose
             self.key_manager = None
+            # TDX session state (populated after attestation)
+            self._tdx_keypair = None
+            self._tdx_session_key = None
+            self._tdx_session_id = None
             return
         
         self.verbose = verbose
@@ -294,6 +298,145 @@ class TaxaRequest(object):
         In the future, this could use a discovery mechanism similar to SGX's p2p/node_distributor.
         """
         return DEFAULT_TDX_URL
+
+    def tdx_establish_session(self):
+        """
+        Establish a TDX ECDH session with attestation.
+        
+        Generates a P-256 keypair, sends public key to server, validates attestation,
+        and derives a shared session key for encrypted communication.
+        
+        Returns:
+            dict: Session info with session_id, session_key, attestation_token, etc.
+            
+        Raises:
+            TaxaException: If not in TDX mode or attestation fails
+        """
+        if self.mode != 'tdx':
+            raise TaxaException("tdx_establish_session() only available in TDX mode")
+        
+        from .tdx_crypto import TDXKeyPair, build_user_claims
+        
+        # Generate client keypair
+        self._tdx_keypair = TDXKeyPair.generate()
+        client_pubkey_b64 = self._tdx_keypair.public_key_base64()
+        
+        self.p("TDX: Establishing session with client pubkey:", client_pubkey_b64[:50] + "...")
+        
+        # Send to attestation/session endpoint
+        url = self.base_url + "/attestation/session"
+        headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
+        
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            response = requests.post(
+                url,
+                verify=self.verify,
+                json={"client_pubkey": client_pubkey_b64},
+                headers=headers
+            )
+        
+        if response.status_code != 200:
+            raise TaxaException(
+                'TDX session attestation failed: %s %s' % (response.status_code, response.text)
+            )
+        
+        data = response.json()
+        
+        # Extract response data
+        attestation_token = data.get("attestation_token")
+        server_pubkey_b64 = data.get("server_pubkey")
+        nonce = data.get("nonce")
+        kex = data.get("kex", "1")
+        session_id = data.get("session_id")
+        
+        self.p("TDX: Received session_id:", session_id)
+        
+        # Build user_claims for key derivation
+        user_claims = build_user_claims(
+            client_pubkey=client_pubkey_b64,
+            server_pubkey=server_pubkey_b64,
+            nonce=nonce,
+            kex=kex
+        )
+        
+        # Derive session key
+        self._tdx_session_key = self._tdx_keypair.derive_session_key(server_pubkey_b64, user_claims)
+        self._tdx_session_id = session_id
+        
+        self.p("TDX: Session established, key derived")
+        
+        return {
+            "session_id": session_id,
+            "session_key": self._tdx_session_key,
+            "attestation_token": attestation_token,
+            "server_pubkey": server_pubkey_b64,
+            "nonce": nonce,
+            "kex": kex
+        }
+
+    def tdx_session_exchange(self, plaintext):
+        """
+        Send encrypted data over an established TDX session.
+        
+        Args:
+            plaintext: Data to send (bytes or str)
+            
+        Returns:
+            bytes: Decrypted response from server
+            
+        Raises:
+            TaxaException: If no session established or exchange fails
+        """
+        if self.mode != 'tdx':
+            raise TaxaException("tdx_session_exchange() only available in TDX mode")
+        
+        if not self._tdx_session_key or not self._tdx_session_id:
+            raise TaxaException("No TDX session established. Call tdx_establish_session() first.")
+        
+        from .tdx_crypto import encrypt_session_data, decrypt_session_data
+        
+        # Convert string to bytes if needed
+        if isinstance(plaintext, str):
+            plaintext = plaintext.encode('utf-8')
+        
+        # Encrypt
+        encrypted = encrypt_session_data(self._tdx_session_key, plaintext)
+        encrypted_b64 = base64.b64encode(encrypted).decode('ascii')
+        
+        self.p("TDX: Sending encrypted data to session exchange")
+        
+        # Send to exchange endpoint
+        url = self.base_url + "/attestation/session/exchange"
+        headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
+        
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            response = requests.post(
+                url,
+                verify=self.verify,
+                json={"session_id": self._tdx_session_id, "data": encrypted_b64},
+                headers=headers
+            )
+        
+        if response.status_code != 200:
+            raise TaxaException(
+                'TDX session exchange failed: %s %s' % (response.status_code, response.text)
+            )
+        
+        # Decrypt response
+        data = response.json()
+        response_encrypted = base64.b64decode(data.get("data", ""))
+        decrypted = decrypt_session_data(self._tdx_session_key, response_encrypted)
+        
+        self.p("TDX: Received and decrypted response")
+        
+        return decrypted
+
+    @property
+    def tdx_session_active(self):
+        """Check if a TDX session is currently established."""
+        return self._tdx_session_key is not None and self._tdx_session_id is not None
 
     def send(self, **convenient):
         """
