@@ -91,8 +91,11 @@ class TaxaRequest(object):
         
         if self.mode == 'tdx':
             # TDX mode uses ECDH session attestation
+            from .tdx_key_managers import TDXKeyManager
+            
             self.verbose = verbose
-            self.key_manager = None
+            # Initialize TDX key manager (identity path from identity param)
+            self.key_manager = TDXKeyManager(identity_path=identity, verbose=verbose)
             # TDX session state (populated after attestation)
             self._tdx_keypair = None
             self._tdx_session_key = None
@@ -299,12 +302,15 @@ class TaxaRequest(object):
         """
         return DEFAULT_TDX_URL
 
-    def tdx_establish_session(self):
+    def tdx_establish_session(self, force_new=False):
         """
         Establish a TDX ECDH session with attestation.
         
-        Generates a P-256 keypair, sends public key to server, validates attestation,
-        and derives a shared session key for encrypted communication.
+        Uses the key manager to get/generate a keypair, sends public key to server,
+        validates attestation, and derives a shared session key for encrypted communication.
+        
+        Args:
+            force_new: Force new session even if one exists (default False)
         
         Returns:
             dict: Session info with session_id, session_key, attestation_token, etc.
@@ -315,10 +321,20 @@ class TaxaRequest(object):
         if self.mode != 'tdx':
             raise TaxaException("tdx_establish_session() only available in TDX mode")
         
-        from .tdx_crypto import TDXKeyPair, build_user_claims
+        from .tdx_crypto import build_user_claims
         
-        # Generate client keypair
-        self._tdx_keypair = TDXKeyPair.generate()
+        server_url = self.base_url
+        
+        # Check for existing session
+        if not force_new and self.key_manager.has_session(server_url):
+            session = self.key_manager.get_session(server_url)
+            self._tdx_session_key = session.get("session_key")
+            self._tdx_session_id = session.get("session_id")
+            self.p("TDX: Using existing session:", self._tdx_session_id)
+            return session
+        
+        # Get keypair from key manager (generates if needed)
+        self._tdx_keypair = self.key_manager.keypair
         client_pubkey_b64 = self._tdx_keypair.public_key_base64()
         
         self.p("TDX: Establishing session with client pubkey:", client_pubkey_b64[:50] + "...")
@@ -364,7 +380,18 @@ class TaxaRequest(object):
         self._tdx_session_key = self._tdx_keypair.derive_session_key(server_pubkey_b64, user_claims)
         self._tdx_session_id = session_id
         
-        self.p("TDX: Session established, key derived")
+        # Save session to key manager
+        self.key_manager.save_session(
+            server_url=server_url,
+            session_id=session_id,
+            session_key=self._tdx_session_key,
+            attestation_token=attestation_token,
+            server_pubkey=server_pubkey_b64,
+            nonce=nonce,
+            kex=kex
+        )
+        
+        self.p("TDX: Session established and saved")
         
         return {
             "session_id": session_id,
