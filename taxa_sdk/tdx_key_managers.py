@@ -4,10 +4,9 @@ TDX Key Managers
 Manages ECDH P-256 keypairs and session keys for TDX attestation.
 Similar to SGX key_managers but uses TDX-compatible formats.
 
-Identity file format:
+Identity file format (version 2 = TDX):
 {
-    "version": 1,
-    "mode": "tdx",
+    "version": 2,
     "client_pubkey": "<base64 DER SubjectPublicKeyInfo>",
     "client_privkey": "<base64 DER PKCS8>",
     "sessions": {
@@ -19,6 +18,8 @@ Identity file format:
         }
     }
 }
+
+Note: version 1 = SGX identity, version 2 = TDX identity
 """
 
 from __future__ import print_function
@@ -50,8 +51,7 @@ class TDXKeyManager:
     DEFAULT_HOME_KEY_NAME = "tdx_identity_{hash}.json"
     
     empty_identity = {
-        "version": 1,
-        "mode": "tdx",
+        "version": 2,
         "client_pubkey": None,
         "client_privkey": None,
         "sessions": {}
