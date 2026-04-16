@@ -555,11 +555,13 @@ class TaxaRequest(object):
 
         return self.decrypt_response(response)
 
-    def _send_tdx(self, function=None, code_path=None, code=None, data=None, json_data=None, libs=None, cid=None, **kwargs):
+    def _send_tdx(self, function=None, code_path=None, code=None, data=None, json_data=None, libs=None, cid=None, encrypted=True, **kwargs):
         """
-        Send request to TDX API backend.
+        Send request to TDX API backend with optional encrypted response.
         
-        Sends contract execution requests to POST /contract/ endpoint.
+        Establishes an attested session (if not already established), sends contract
+        execution request to POST /contract/ endpoint, and decrypts the response
+        using the session key.
         
         Args:
             function: The function name to call in the contract
@@ -569,16 +571,25 @@ class TaxaRequest(object):
             json_data: Alias for data (backwards compatibility)
             libs: List of pip packages to install for the contract (optional)
             cid: Content ID of previously uploaded code (optional, alternative to code/code_path)
+            encrypted: Whether to use encrypted response (default True)
         
         Returns:
             dict: Response from TDX API containing:
                 - cid: Content ID of the code
-                - result: The return value from the contract function
+                - result: The return value from the contract function (decrypted)
                 - log: Any print() output from the contract
                 - time: Execution time in seconds
+                - session_id: Session ID used for this request
         """
+        from .tdx_crypto import decrypt_session_data
+        
         if function:
             self.function = function
+        
+        # Establish session if encrypted responses are requested
+        if encrypted and not self.tdx_session_active:
+            self.p("TDX mode - Establishing attested session...")
+            self.tdx_establish_session()
         
         # Use data or json_data
         request_data = data or json_data or {}
@@ -589,6 +600,10 @@ class TaxaRequest(object):
             "input_json": json.dumps(request_data),
             "libs": libs or []
         }
+        
+        # Add session_id for encrypted response
+        if encrypted and self._tdx_session_id:
+            payload["session_id"] = self._tdx_session_id
         
         # Add code or cid
         if code_path:
@@ -607,7 +622,7 @@ class TaxaRequest(object):
         headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
         
         self.p("TDX mode - Sending to:", url)
-        self.p("TDX mode - Payload:", payload)
+        self.p("TDX mode - Payload (session_id=%s):" % payload.get("session_id"), payload)
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -636,13 +651,26 @@ class TaxaRequest(object):
         if 'syntax error' in response:
             raise InvalidRequest("Syntax error: %s" % response['syntax error'])
         
+        # Decrypt the result if encrypted
+        result = response.get('result')
+        if encrypted and self._tdx_session_key and response.get('encrypted_result'):
+            encrypted_result = base64.b64decode(response['encrypted_result'])
+            decrypted_bytes = decrypt_session_data(self._tdx_session_key, encrypted_result)
+            try:
+                result = json.loads(decrypted_bytes.decode('utf-8'))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                result = decrypted_bytes  # Return raw bytes if not JSON
+            self.p("TDX mode - Decrypted result")
+        
         # Return TDX response format
         return {
             'response-code': '2000',
             'cid': response.get('cid'),
-            'result': response.get('result'),
+            'result': result,
+            'encrypted_result': response.get('encrypted_result'),  # Raw encrypted for debugging
             'log': response.get('log'),
             'time': response.get('time'),
+            'session_id': self._tdx_session_id,
             'mode': 'tdx'
         }
 
